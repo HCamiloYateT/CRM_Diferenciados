@@ -19,16 +19,60 @@
     "Mercados internacionales" = "País del cliente y destinos se conservan separados; los mapas dependen de ISO.",
     "Administración" = "Catálogos, fuentes, auditoría y homologaciones, según el acceso y los datos disponibles."
   )
-  ficha <- function(titulo, texto) {
-    if (.disponible_api("racafeForms", "racafePanel")) {
-      return(racafeForms::racafePanel(shiny::tags$p(texto), title = titulo, variant = "muted"))
-    }
-    div(class = "crm-panel", shiny::h2(titulo), shiny::tags$p(texto))
+  iconos <- c("clipboard-list", "briefcase", "filter", "chart-gantt", "boxes-stacked", "flask",
+              "users", "ship", "chart-line", "calculator", "globe", "gear")
+  alcance <- paste("El CRM analiza la línea original 20000. Actualizar vuelve a leer el corte publicado.",
+                   "Los indicadores de mercado se consultan desde su menú en el encabezado.")
+  if (!.disponible_api("racafeForms", "racafeInfoGrid")) {
+    return(div(class = "crm-vista", shiny::h1(.titulo), .nota(alcance),
+               div(class = "crm-form-grid", lapply(seq_along(secciones), function(i) {
+                 div(class = "crm-panel", shiny::h2(names(secciones)[i]), shiny::tags$p(secciones[i]))
+               }))))
   }
-  div(class = "crm-vista", shiny::h1("CRM Diferenciados"),
-      ficha("Alcance y actualización", paste("El CRM analiza la línea original 20000.",
-        "Actualizar vuelve a leer el corte disponible. Cada sección indica sus fuentes y limitaciones.")),
-      div(class = "crm-form-grid", lapply(seq_along(secciones), function(i) ficha(names(secciones)[i], secciones[i]))))
+
+  shiny::div(class = "crm-vista",
+    racafeForms::racafeForm(id = "inicio_diferenciados", variant = "plain",
+      racafeForms::racafePanel(title = "CRM Diferenciados · Información para la gestión comercial",
+        variant = "highlighted", padding = "comfortable", shiny::tags$p(alcance)),
+      racafeForms::racafePanel(title = "Consulta y actualización de la información", variant = "muted",
+        racafeForms::racafeInfoGrid(columns = 2,
+          racafeForms::racafeInfoItem("ALCANCE DE LA CONSULTA",
+            "La barra lateral derecha reúne los filtros. Cada vista conserva su período y grano de análisis."),
+          racafeForms::racafeInfoItem("DISPONIBILIDAD DE LOS DATOS",
+            "La sesión usa el corte disponible. Una nueva publicación se incorpora con Actualizar."))),
+      shiny::tags$h3("Secciones de la plataforma"),
+      racafeForms::racafeInfoGrid(columns = 2, lapply(seq_along(secciones), function(i) {
+        simbolo <- shiny::tagAppendAttributes(shiny::icon(iconos[i]), class = "text-danger")
+        racafeForms::racafeCard(title = toupper(names(secciones)[i]), variant = "default", padding = "normal",
+                                icon = simbolo, shiny::tags$p(secciones[i]))
+      })),
+      racafeForms::racafePanel(title = "Criterios para interpretar los resultados",
+        racafeForms::racafeInfoGrid(columns = 2,
+          racafeForms::racafeInfoItem("PEDIDOS Y EJECUCIÓN",
+            "La fecha de creación y la fecha de embarque efectivo corresponden a hechos distintos."),
+          racafeForms::racafeInfoItem("COBERTURA Y MEDIDAS",
+            "Cada cifra depende del corte, la cobertura histórica y la unidad de medida indicada.")))))
+}
+
+.GlosarioDiferenciadosUI <- function() {
+  definiciones <- c(
+    PerCod = "Identificador institucional del cliente.",
+    Cohorte = "Período de creación del primer pedido observado del PerCod en la línea 20000.",
+    "Compromiso de embarque" = "Fecha o período previsto asociado al pedido.",
+    "Embarque efectivo" = "Fecha de ejecución verificada para evaluar cumplimiento.",
+    FCC = "Margen financiero asociado a una operación conciliada.",
+    "Market Basket" = "Análisis de ítems comprados juntos que orienta posibles ventas cruzadas."
+  )
+  contenido <- if (.disponible_api("racafeForms", "racafeInfoGrid")) {
+    racafeForms::racafeInfoGrid(columns = 2, lapply(seq_along(definiciones), function(i) {
+      racafeForms::racafeInfoItem(names(definiciones)[i], definiciones[i])
+    }))
+  } else {
+    shiny::tags$dl(lapply(seq_along(definiciones), function(i) {
+      shiny::tagList(shiny::tags$dt(names(definiciones)[i]), shiny::tags$dd(definiciones[i]))
+    }))
+  }
+  shiny::modalDialog(title = "Glosario comercial", contenido, easyClose = TRUE, footer = shiny::modalButton("Cerrar"))
 }
 
 .PresupuestoCeroUI <- function(id) {

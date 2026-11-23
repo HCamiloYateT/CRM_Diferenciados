@@ -60,22 +60,25 @@ function(input, output, session) {
     texto <- if (inherits(publicacion, "error")) "No se pudo leer la publicación" else if (length(corte)) {
       paste("Corte operacional", format(as.Date(corte), "%d/%m/%Y"))
     } else "Sin publicación operacional"
-    div(class = "crm-corte-interior", span(class = "crm-dot"), tags$span(texto),
-        tags$span(class = "crm-universo", "Línea 20000"))
+    tags$p(texto)
   })
 
   abrir_accion <- function(id) showModal(.formulario_accion(id))
   for (id in names(.acciones)) local({
     accion <- id
     observeEvent(input[[paste0("control_", accion)]], abrir_accion(accion))
-    if (accion != "tarea") observeEvent(input[[paste0("header_", accion)]], abrir_accion(accion))
+    observeEvent(input[[paste0("header_", accion)]], abrir_accion(accion))
   })
   output$acciones_clientes <- renderUI({
     clientes <- operativo()$clientes
-    tagList(.boton("abrir_clientes", "Clientes", "users"),
-            if (!is.null(clientes) && nrow(clientes)) {
-              downloadButton("descarga_clientes", "CSV", class = "btn-sm btn-outline-secondary")
-            })
+    descarga <- if (!is.null(clientes) && nrow(clientes)) {
+      if (.disponible_api("racafeForms", "racafeButtonDownload")) {
+        racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "file-csv", size = "xxs")
+      } else downloadButton("descarga_clientes", "CSV", class = "btn-sm btn-outline-secondary")
+    }
+    tagList(.boton_header("abrir_clientes", "Directorio de clientes", "users"),
+            if (!is.null(descarga)) shiny::tagAppendAttributes(descarga, title = "Descargar clientes",
+                                                             `aria-label` = "Descargar clientes"))
   })
   observeEvent(input$abrir_clientes, updatebs4TabItems(session, "navegacion", selected = "directorio"))
   output$descarga_clientes <- downloadHandler(
@@ -96,13 +99,17 @@ function(input, output, session) {
                           footer = modalButton("Cerrar")))
   })
   output$identidad_header <- renderUI({
-    .boton("usuario", session$user %||% "Usuario", "circle-user")
+    identidad <- session$user %||% "Usuario"
+    tags$button(id = "usuario", type = "button", class = "action-button crm-identidad", title = "Información de sesión",
+                identidad)
   })
   observeEvent(input$usuario, {
     identidad <- session$user %||% "Sesión sin identidad institucional"
-    showModal(modalDialog(title = "Usuario", tags$p(identidad), tags$p("Acceso de consulta"),
+    showModal(modalDialog(title = "Usuario", tags$p(identidad), uiOutput("estado_corte"), tags$p("Línea 20000"),
                           footer = modalButton("Cerrar")))
   })
+
+  observeEvent(input$glosario, showModal(.GlosarioDiferenciadosUI()))
 
   mercado <- reactiveVal(NULL)
   vigentes <- function(refrescar = FALSE) {
@@ -117,6 +124,7 @@ function(input, output, session) {
     updatebs4TabItems(session, "navegacion", selected = "comparacion_indicadores")
   }
   if (.MenuIndicadoresCorporativo()) {
+    racafeModulos::MenuHeaderServer("MenuAccionesCRM", items_r = .acciones_header_ui(), showHeader = FALSE)
     menu <- racafeModulos::MenuHeaderServer("MenuIndicadores", items_r = TablaIndicadoresUI("ind_kpis"),
                                             href = "#", footerText = "Comparación de Indicadores")
     abierto <- reactive(input[["MenuIndicadores-open"]])
