@@ -68,3 +68,27 @@
                          "Margen disponible" = "margenes", "Presupuesto" = "presupuesto",
                          "Cuenta padre" = "jerarquia_cuentas", "Tier" = "tiers",
                          "Productos homologados" = "productos")
+
+# Identificación comercial ----
+
+.clientes_vista <- function(clientes) {
+  if (is.null(clientes)) return(NULL)
+  data.frame(PerCod = clientes$PerCod, Nombre = clientes$PerRazSoc,
+             Estado = rep("Cliente", nrow(clientes)), stringsAsFactors = FALSE)
+}
+
+.selector_clientes <- function(id, etiqueta, multiple = FALSE, placeholder = "Buscar por PerCod o nombre") {
+  shiny::selectizeInput(id, etiqueta, choices = NULL, multiple = multiple,
+                        options = list(placeholder = placeholder, maxOptions = 50))
+}
+
+.actualizar_selector_clientes <- function(session, id, clientes, seleccion) {
+  opciones <- character()
+  if (!is.null(clientes) && nrow(clientes)) {
+    nombre <- clientes$PerRazSoc
+    rotulos <- ifelse(is.na(nombre) | !nzchar(trimws(nombre)), clientes$PerCod, paste(clientes$PerCod, nombre))
+    opciones <- stats::setNames(clientes$PerCod, rotulos)
+  }
+  shiny::updateSelectizeInput(session, id, choices = opciones, selected = intersect(seleccion, opciones),
+                              server = TRUE)
+}

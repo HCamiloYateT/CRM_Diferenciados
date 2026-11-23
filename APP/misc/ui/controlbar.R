@@ -8,6 +8,7 @@
                        conditionalPanel("input.usar_periodo",
                                         dateRangeInput("periodo", NULL, format = "dd/mm/yyyy", language = "es")),
                        uiOutput("opciones_filtros"),
+                       .selector_clientes("filtro_cliente", "Cliente", multiple = TRUE, placeholder = "Todos"),
                        textInput("percod", "PerCod exacto"),
                        .boton("limpiar", "Restablecer filtros", "eraser"),
                        tags$details(tags$summary("Filtros pendientes"), tags$ul(lapply(

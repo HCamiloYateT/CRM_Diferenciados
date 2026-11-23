@@ -22,7 +22,8 @@ VistaUI <- function(id, vista) {
         shiny::dateRangeInput(ns("periodo"), "Período de primera compra",
                               start = .HoyProductos() - 365, end = .HoyProductos(), format = "dd/mm/yyyy",
                               language = "es"), shiny::textOutput(ns("total_cohorte"))),
-      if (id %in% c("individual", "detalle")) uiOutput(ns("seleccion")),
+      if (id == "individual") .selector_clientes(ns("registro"), "Cliente"),
+      if (id == "detalle") uiOutput(ns("seleccion")),
       if (id == "individual") uiOutput(ns("ficha")),
       if (!is.null(vista$grafico)) uiOutput(ns("panel_grafico")),
       if (id == "kanban") uiOutput(ns("tablero")),
@@ -67,20 +68,6 @@ VistaUI <- function(id, vista) {
   !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado")])) && !nzchar(filtros$percod %||% "")
 }
 
-.directorio_ui_datos <- function(datos, operativo) {
-  if (is.null(datos) || is.null(operativo$pedidos)) return(datos)
-  pedidos <- operativo$pedidos
-  grupos <- split(pedidos, pedidos$PerCod)
-  ultimo <- vapply(grupos, function(x) {
-    fechas <- x$fecha_creacion[!is.na(x$fecha_creacion)]
-    if (length(fechas)) as.character(max(fechas)) else NA_character_
-  }, character(1))
-  datos$ultimo_pedido <- unname(ultimo[match(datos$PerCod, names(ultimo))])
-  datos$pedidos_del_universo <- as.integer(table(pedidos$PerCod)[datos$PerCod])
-  datos$sacos_del_universo <- .dp_agregar(pedidos$PerCod, pedidos$sacos, datos$PerCod)
-  datos
-}
-
 VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_accion, cargando) {
   moduleServer(id, function(input, output, session) {
     datos <- reactive({
@@ -95,10 +82,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         shiny::req(length(rango) == 2L, !anyNA(rango), rango[1L] <= rango[2L])
         tabla <- tabla[which(tabla$fecha_creacion >= rango[1L] & tabla$fecha_creacion <= rango[2L]), , drop = FALSE]
       }
-      if (id == "directorio" && !is.null(tabla)) {
-        preparado <- all(c("ultimo_pedido", "pedidos_del_universo", "sacos_del_universo") %in% names(tabla))
-        if (!preparado || !.sin_filtros_vista(filtros())) tabla <- .directorio_ui_datos(tabla, operativo())
-      }
+      if (id %in% c("directorio", "prospectos_clientes")) tabla <- .clientes_vista(tabla)
       if (id == "detalle" && !is.null(tabla) && nzchar(input$registro %||% "")) {
         tabla <- tabla[tabla$pedido_id == input$registro, , drop = FALSE]
       }
@@ -192,21 +176,18 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       }
     }
 
-    if (id %in% c("individual", "detalle")) {
-      output$seleccion <- renderUI({
-        origen <- if (id == "individual") operativo()$clientes else operativo()$pedidos
-        if (!is.null(origen) && nrow(origen)) {
-          opciones <- if (id == "individual") {
-            setNames(origen$PerCod, paste(origen$PerCod, origen$PerRazSoc))
-          } else setNames(origen$pedido_id, paste(origen$CiaCod, origen$PdcCod, sep = " / "))
-          return(selectInput(session$ns("registro"), if (id == "individual") "Cliente" else "Pedido",
-                             c("Seleccione…" = "", opciones), selected = isolate(input$registro %||% "")))
-        }
-        .nota("Sin opciones en el universo filtrado.", "muted")
-      })
-    }
+    if (id == "detalle") output$seleccion <- renderUI({
+      origen <- operativo()$pedidos
+      if (is.null(origen) || !nrow(origen)) return(.nota("Sin opciones en el universo filtrado.", "muted"))
+      opciones <- setNames(origen$pedido_id, paste(origen$CiaCod, origen$PdcCod, sep = " / "))
+      selectInput(session$ns("registro"), "Pedido", c("Seleccione…" = "", opciones),
+                  selected = isolate(input$registro %||% ""))
+    })
 
     if (id == "individual") {
+      observeEvent(operativo()$clientes, {
+        .actualizar_selector_clientes(session, "registro", operativo()$clientes, input$registro)
+      }, ignoreNULL = FALSE)
       output$ficha <- renderUI({
         if (!nzchar(input$registro %||% "")) return(NULL)
         do.call(tabsetPanel, lapply(seq_along(.ficha), function(i) {
@@ -228,7 +209,8 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         .tabla_server(paste0("ficha_", indice), reactive({
           fuente <- .vista_datos(publicaciones(), operativo(), unname(.ficha[indice]), filtros())
           if (is.null(fuente) || !"PerCod" %in% names(fuente)) return(NULL)
-          fuente[which(fuente$PerCod == input$registro), , drop = FALSE]
+          filas <- fuente[which(fuente$PerCod == input$registro), , drop = FALSE]
+          if (unname(.ficha[indice]) == "clientes_comerciales") .clientes_vista(filas) else filas
         }), output)
       })
     }

@@ -36,14 +36,13 @@ function(input, output, session) {
       selectizeInput(id, etiqueta, choices = valores, selected = intersect(seleccion, valores),
                      multiple = TRUE, options = list(placeholder = "Todos"))
     }
-    nombres <- if (is.null(clientes)) character() else {
-      rotulos <- ifelse(is.na(clientes$PerRazSoc), clientes$PerCod, paste(clientes$PerCod, clientes$PerRazSoc))
-      setNames(clientes$PerCod, rotulos)
-    }
     tagList(opciones("filtro_pais", "País de la empresa", sort(unique(clientes$codigo_pais))),
             opciones("filtro_destino", "País de destino", sort(unique(lineas$PaiCodDtn))),
-            opciones("filtro_cliente", "Cliente", nombres),
             opciones("filtro_estado", "Estado de pedido", sort(unique(pedidos$estado_original))))
+  })
+  observeEvent(publicaciones(), {
+    clientes <- .tabla_fuente(publicaciones(), "clientes")
+    .actualizar_selector_clientes(session, "filtro_cliente", clientes, input$filtro_cliente)
   })
   observeEvent(input$limpiar, {
     updateCheckboxInput(session, "usar_periodo", value = FALSE)
@@ -84,7 +83,7 @@ function(input, output, session) {
   output$descarga_clientes <- downloadHandler(
     filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".csv"),
     content = function(ruta) {
-      clientes <- operativo()$clientes
+      clientes <- .clientes_vista(operativo()$clientes)
       req(!is.null(clientes), nrow(clientes))
       # Los nombres de origen pueden comenzar por caracteres que una hoja de cálculo ejecutaría.
       clientes[] <- lapply(clientes, function(x) {
@@ -105,7 +104,7 @@ function(input, output, session) {
   })
   observeEvent(input$usuario, {
     identidad <- session$user %||% "Sesión sin identidad institucional"
-    showModal(modalDialog(title = "Usuario", tags$p(identidad), uiOutput("estado_corte"), tags$p("Línea 20000"),
+    showModal(modalDialog(title = "Usuario", tags$p(identidad), uiOutput("estado_corte"),
                           footer = modalButton("Cerrar")))
   })
 
