@@ -32,3 +32,23 @@ stopifnot(nrow(seleccion$pedidos) == 1L, seleccion$pedidos$sacos == 1, seleccion
 stopifnot(.datos_grafico("destino", lineas, seleccion)$total[2L] == 2L)
 publicaciones$operacional$tablas$lineas_pedido$LinNegCod[1L] <- "10000"
 stopifnot(.estado_fuente(publicaciones, "lineas_pedido") == "Esquema incompatible")
+
+# Fecha exacta de primera compra y meta cero con meses posteriores al corte pendientes.
+fechas <- as.Date(c("2025-01-02", "2025-01-22"))
+primeros <- data.frame(PerCod = c("01", "02"), pedido_id = c("A", "B"), fecha_creacion = fechas, cohorte = "2025-01")
+publicaciones$operacional$tablas$primer_pedido_cliente <- primeros
+publicaciones$operacional$manifiesto$procedencia$corte <- as.Date("2025-02-01")
+shiny::testServer(VistaServer, args = list(id = "cohortes", vista = .vistas$cohortes, publicaciones = function() publicaciones,
+  operativo = function() list(clientes = clientes), filtros = function() list(), abrir_accion = identity,
+  cargando = function() FALSE), {
+  session$setInputs(periodo = as.Date(c("2025-01-12", "2025-01-31")))
+  stopifnot(identical(datos()$PerCod, "02"))
+})
+shiny::testServer(.PresupuestoCeroServer, args = list(operativo = function() list(pedidos = pedidos),
+  publicaciones = function() publicaciones), {
+  session$setInputs(anio = 2025)
+  datos_presupuesto <- mensual()
+  stopifnot(all(datos_presupuesto$PptoL == 0), all(is.na(datos_presupuesto$Cumplimiento)),
+            identical(datos_presupuesto$SacosPedidos[1:2], c(4, 3)),
+            all(is.na(datos_presupuesto$SacosPedidos[3:12])))
+})

@@ -1,14 +1,12 @@
 :root {
-  --crm-red: #b8261c;
+  --crm-red: #DA291C;
   --crm-ink: #202725;
   --crm-muted: #565f5b;
   --crm-rule: #e3e6e3;
   --crm-paper: #f6f7f4;
 }
 .content-wrapper { background: var(--crm-paper); color: var(--crm-ink); }
-.main-sidebar { background: #252c2a; }
 .main-sidebar .nav-sidebar .nav-link { white-space: normal; }
-.main-sidebar .nav-sidebar .nav-link.active { background: #972820; color: #fff; }
 .main-header .brand-link { font-weight: 650; }
 .crm-nav-acciones { display: flex; align-items: center; gap: .35rem; }
 .crm-nav-acciones > span { display: inline-flex; gap: .35rem; }

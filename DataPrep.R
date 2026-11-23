@@ -40,7 +40,8 @@ EjecutarDataPrep <- function(carpeta, corte, raiz = ".") {
   tryCatch({
     archivos <- c(raw_clientes = "clientes.csv", raw_pedidos = "pedidos.csv", raw_lineas = "lineas.csv",
                   raw_unidades = "unidades.csv")
-    origen <- setNames(file.path(carpeta, archivos), unname(archivos))
+    fuentes <- c(unname(archivos), "lotes_productos.csv")
+    origen <- setNames(file.path(carpeta, fuentes), fuentes)
     firmar <- function() {
       presentes <- origen[file.exists(origen)]
       setNames(unname(tools::md5sum(presentes)), names(presentes))
@@ -58,6 +59,16 @@ EjecutarDataPrep <- function(carpeta, corte, raiz = ".") {
                       nrow(raw_lineas) - nrow(tablas$lineas_pedido), nrow(tablas$calidad))
     for (nombre in names(archivos)) {
       tablas[[nombre]] <- data.frame(fuente = unname(archivos[nombre]), datos = I(list(tablas[[nombre]])))
+    }
+    if ("lotes_productos.csv" %in% names(firmas)) {
+      source(file.path(raiz, "APP", "misc", "modules", "productos", "datos.R"), local = TRUE)
+      lotes <- .dp_leer(carpeta, "lotes_productos", c("CiaCod", "CLPdcCod", "CLPdcLin", "CLLotCod",
+                                                      "CLLinNegCo", "SacosAsignados"))
+      normalizados <- .prod_normalizar_lotes(lotes)
+      lotes <- lotes[lotes$CLLinNegCo == "20000", , drop = FALSE]
+      tablas$raw_lineas <- rbind(tablas$raw_lineas,
+                                data.frame(fuente = "lotes_productos.csv", datos = I(list(lotes))))
+      .prod_hechos(list(tablas = c(tablas, list(lotes_productos = normalizados))))
     }
     registrar("validado", cifras, tablas$calidad)
     if (anyNA(firmas) || !identical(firmar(), firmas)) stop("Las exportaciones cambiaron durante el ETL.")

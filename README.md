@@ -11,3 +11,5 @@ La [capa de persistencia RDS](docs/modelo_datos/persistencia_rds.md) centraliza 
 [DataPrep.R y contrato de exportaciones del primer bloque](docs/modelo_datos/dataprep.md).
 
 La [aplicación Shiny](docs/modelo_datos/ui.md) se inicia desde la raíz con `shiny::runApp("APP")`.
+
+[Productos y Market Basket](docs/modelo_datos/productos.md) documenta las cestas, la atribución y la aceptación comercial.

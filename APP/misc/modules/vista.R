@@ -17,7 +17,11 @@ VistaUI <- function(id, vista) {
             })),
             tags$small("Pendiente de vínculo con el registro, permisos y servicio validado de gestión."))
       },
-      if (id == "inicio") uiOutput(ns("resumen")),
+      if (id == "resumen") uiOutput(ns("resumen")),
+      if (id == "cohortes") shiny::div(class = "crm-indicadores-filtros",
+        shiny::dateRangeInput(ns("periodo"), "Período de primera compra",
+                              start = .HoyProductos() - 365, end = .HoyProductos(), format = "dd/mm/yyyy",
+                              language = "es"), shiny::textOutput(ns("total_cohorte"))),
       if (id %in% c("individual", "detalle")) uiOutput(ns("seleccion")),
       if (id == "individual") uiOutput(ns("ficha")),
       if (!is.null(vista$grafico)) uiOutput(ns("panel_grafico")),
@@ -77,11 +81,26 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
   moduleServer(id, function(input, output, session) {
     datos <- reactive({
       tabla <- .vista_datos(publicaciones(), operativo(), vista$fuente, filtros())
+      if (id %in% c("prospectos", "leads") && !is.null(tabla)) {
+        if (!"etapa" %in% names(tabla)) return(NULL)
+        etapa <- if (id == "prospectos") "PROSPECTO" else "LEAD"
+        tabla <- tabla[which(tabla$etapa == etapa), , drop = FALSE]
+      }
+      if (id == "cohortes" && !is.null(tabla)) {
+        rango <- input$periodo
+        shiny::req(length(rango) == 2L, !anyNA(rango), rango[1L] <= rango[2L])
+        tabla <- tabla[which(tabla$fecha_creacion >= rango[1L] & tabla$fecha_creacion <= rango[2L]), , drop = FALSE]
+      }
       if (id == "directorio") tabla <- .directorio_ui_datos(tabla, operativo())
       if (id == "detalle" && !is.null(tabla) && nzchar(input$registro %||% "")) {
         tabla <- tabla[tabla$pedido_id == input$registro, , drop = FALSE]
       }
       tabla
+    })
+    if (id == "cohortes") output$total_cohorte <- shiny::renderText({
+      registros <- datos()
+      shiny::req(!is.null(registros))
+      paste("Clientes nuevos en el período:", .formato_cantidad(.prod_contar(registros$PerCod)))
     })
     output$estado <- renderUI({
       if (cargando()) return(.nota("Cargando publicación…"))
@@ -105,7 +124,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
     output$nota <- renderUI({
       pub <- publicaciones()$operacional
       corte <- pub$manifiesto$procedencia$corte
-      if (id %in% c("inicio", "pedidos") && length(corte)) {
+      if (id %in% c("resumen", "pedidos") && length(corte)) {
         fecha <- format(as.Date(corte), "%d/%m/%Y")
         return(.nota(paste("Corte", fecha, "·", vista$nota %||% "Pedidos de línea 20000.")))
       }
@@ -193,7 +212,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       })
     }
 
-    if (id == "inicio") {
+    if (id == "resumen") {
       fuentes_kpi <- c("Empresas registradas" = "empresas", "Contactos" = "contactos",
                        "Prospectos" = "empresas", "Leads" = "empresas",
                        "Clientes históricos" = "clientes_comerciales", "Clientes nuevos" = "primer_pedido_cliente",

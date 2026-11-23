@@ -137,5 +137,13 @@ function(input, output, session) {
   ComparacionIndicadores("comparacion_indicadores",
                          reactive(identical(input$navegacion, "comparacion_indicadores")), vigentes)
 
+  .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
+  ProductosServer("analisis_productos", publicaciones, filtros, .raiz_crm, function() {
+    actualizado <- isolate(publicaciones())
+    actualizado$crm <- LeerPublicacionRDS(.raiz_crm, "crm")
+    publicaciones(actualizado)
+    updatebs4TabItems(session, "navegacion", selected = "oportunidades")
+  })
+
   for (id in names(.vistas)) VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando)
 }

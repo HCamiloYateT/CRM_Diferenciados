@@ -14,7 +14,7 @@
 
 .boton <- function(id, etiqueta, simbolo) {
   if (.disponible_api("racafeForms", "racafeButton")) {
-    return(racafeForms::racafeButton(id, etiqueta, icon = simbolo, size = "xs", title = etiqueta))
+    return(racafeForms::racafeButton(id, etiqueta, icon = simbolo, size = "xxs", variant = "secondary", title = etiqueta))
   }
   actionButton(id, etiqueta, icon = icon(simbolo), class = "btn-sm btn-outline-secondary", title = etiqueta)
 }

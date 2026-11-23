@@ -5,18 +5,26 @@
 }
 
 .grupos <- list(
-  "Inicio" = list(inicio = .vista("Resumen ejecutivo", "pedidos", grafico = "pedidos")),
-  "Prospección" = list(
-    embudo = .vista("Embudo comercial", "empresas"), kanban = .vista("Kanban", "empresas"),
-    contactos = .vista("Directorio de contactos", "contactos"), conversiones = .vista("Conversiones",
-      "primer_pedido_cliente", "Primera creación observada de un pedido 20000.", "cohortes"),
-    descartados = .vista("Descartados", "descartados")
-  ),
+  "Generalidades" = list(resumen = .vista("Resumen ejecutivo", "pedidos", grafico = "pedidos")),
   "Gestión comercial" = list(
     oportunidades = .vista("Oportunidades", "oportunidades",
       "Adquisición, cross-selling y up-selling. Las sugerencias requieren aceptación autorizada."),
     actividades = .vista("Actividades", "gestiones"), tareas = .vista("Tareas y pendientes", "tareas"),
     notas = .vista("Notas y seguimiento", "notas")
+  ),
+  "Prospección" = list(
+    kanban = .vista("Kanban", "empresas"), contactos = .vista("Contactos", "contactos"),
+    prospectos = .vista("Prospectos", "empresas"), leads = .vista("Leads", "empresas"),
+    prospectos_clientes = .vista("Clientes", "clientes_comerciales"),
+    descartados = .vista("Descartados", "descartados"),
+    conversiones = .vista("Conversión", "primer_pedido_cliente",
+                           "Primera creación observada de un pedido 20000.", "cohortes"),
+    embudo = .vista("Embudo comercial", "empresas")
+  ),
+  "Cohortes de clientes" = list(
+    cohortes = .vista("Clientes nuevos por período", "primer_pedido_cliente",
+      "Un PerCod cuenta en el período exacto de su primer pedido observado. La cobertura histórica limita la cohorte.",
+      "cohortes")
   ),
   "Muestras" = list(
     muestras = .vista("Directorio de muestras", "muestras"), solicitudes = .vista("Solicitudes", "muestras"),
@@ -27,9 +35,7 @@
   "Clientes" = list(
     directorio = .vista("Directorio comercial", "clientes_comerciales"),
     individual = .vista("Consulta individual", "clientes_comerciales"),
-    segmentacion = .vista("Segmentación", "tiers", "Los tiers corresponden a cuentas padre homologadas."),
-    cohortes = .vista("Cohortes y retención", "cohortes_clientes",
-      "Cohorte por primera creación observada. Las reglas de actividad y reactivación siguen pendientes.", "cohortes")
+    segmentacion = .vista("Segmentación", "tiers", "Los tiers corresponden a cuentas padre homologadas.")
   ),
   "Pedidos y embarques" = list(
     pedidos = .vista("Pedidos", "pedidos", "Volumen y valor derivados de líneas elegibles.", "pedidos"),
@@ -46,11 +52,7 @@
     atributos = .vista("Atributos comerciales", "lineas_pedido",
       "Se conservan los códigos de origen. Categorías y productos homologados siguen pendientes.")
   ),
-  "Presupuesto y potencial" = list(
-    presupuesto = .vista("Presupuesto anual", "presupuesto", "Metas de sacos, margen US¢/lb y MNFCC por cliente."),
-    cumplimiento = .vista("Cumplimiento presupuestal", "presupuesto", "Requiere metas y ejecución comparables."),
-    potencial = .vista("Potencial y penetración", "potencial")
-  ),
+  "Potencial" = list(potencial = .vista("Potencial y penetración", "potencial")),
   "Mercados internacionales" = list(
     panorama = .vista("Panorama geográfico", "paises", "El mapa requiere equivalencias ISO verificadas."),
     paises = .vista("Países", "lineas_pedido", "País de destino y de origen según sus códigos fuente.", "destino"),
@@ -68,7 +70,8 @@
   )
 )
 .vistas <- do.call(c, unname(.grupos))
-.iconos <- c("house", "filter", "briefcase", "flask", "users", "ship", "chart-line", "calculator", "globe", "gear")
+.iconos <- c("clipboard-list", "briefcase", "filter", "chart-gantt", "flask", "users", "ship",
+             "chart-line", "calculator", "globe", "gear")
 
 .fuente <- function(dominio, clave, campos = clave, pendiente = "Pendiente de fuente") {
   list(dominio = dominio, clave = clave, campos = campos, pendiente = pendiente)
@@ -111,7 +114,7 @@
             "Cartera" = "cartera", "Notas" = "notas", "Tareas" = "tareas")
 
 .dependencias_vista <- list(
-  inicio = c("Clientes por cohorte" = "cohortes_clientes", "Distribución por comercial" = "responsables",
+  resumen = c("Clientes por cohorte" = "cohortes_clientes", "Distribución por comercial" = "responsables",
              "Embudo de conversión" = "empresas", "Compromisos" = "referencias_embarque"),
   embudo = c("Condición histórica de cliente" = "primer_pedido_cliente", "Descartes" = "descartados"),
   conversiones = c("Duración desde captación y origen" = "empresas", "Conversión por comercial" = "responsables"),
