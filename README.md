@@ -9,3 +9,5 @@ La [Fase 2](docs/modelo_datos/README.md) documenta las decisiones aprobadas desp
 La [capa de persistencia RDS](docs/modelo_datos/persistencia_rds.md) centraliza contratos, lectura, escritura, auditoría y recuperación.
 
 [DataPrep.R y contrato de exportaciones del primer bloque](docs/modelo_datos/dataprep.md).
+
+La [aplicación Shiny](docs/modelo_datos/ui.md) se inicia desde la raíz con `shiny::runApp("APP")`.

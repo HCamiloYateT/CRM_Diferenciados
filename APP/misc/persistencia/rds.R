@@ -110,21 +110,32 @@ ValidarEsquemaRDS <- function(datos, contrato) {
   id
 }
 
-.rds_cargar <- function(ruta, contratos, id) {
-  id <- .rds_id_generacion(id)
-  carpeta <- file.path(ruta, id)
+.rds_verificar_archivos <- function(carpeta, id) {
   manifiesto <- readRDS(file.path(carpeta, "manifiesto.rds"))
-  versiones <- vapply(contratos, function(contrato) contrato$version, "")
-  if (!identical(manifiesto$formato, 1L) || !identical(manifiesto$id, id) ||
-      !identical(manifiesto$versiones, versiones)) {
-    stop("Manifiesto RDS incompatible.", call. = FALSE)
+  if (!identical(manifiesto$formato, 1L) || !identical(manifiesto$id, id)) {
+    stop(structure(list(message = "Formato de publicación incompatible."),
+                   class = c("esquema_publicacion", "error", "condition")))
   }
-  archivos <- c(paste0(names(contratos), ".rds"), "_auditoria.rds")
+  nombres <- names(manifiesto$versiones)
+  if (!length(nombres) || anyDuplicated(nombres) || !all(vapply(nombres, .rds_nombre, "") == nombres)) {
+    stop("Nombres de publicación inválidos.", call. = FALSE)
+  }
+  archivos <- c(paste0(nombres, ".rds"), "_auditoria.rds")
   firmas <- unname(tools::md5sum(file.path(carpeta, archivos)))
   if (!identical(names(manifiesto$firmas), archivos) || anyNA(firmas) ||
       !identical(firmas, unname(manifiesto$firmas))) {
     stop("Generación RDS incompleta o alterada.", call. = FALSE)
   }
+  manifiesto
+}
+
+.rds_cargar <- function(ruta, contratos, id) {
+  id <- .rds_id_generacion(id)
+  carpeta <- file.path(ruta, id)
+  manifiesto <- .rds_verificar_archivos(carpeta, id)
+  versiones <- vapply(contratos, function(contrato) contrato$version, "")
+  if (!identical(manifiesto$versiones, versiones)) stop("Manifiesto RDS incompatible.", call. = FALSE)
+  archivos <- names(manifiesto$firmas)
   tablas <- setNames(lapply(file.path(carpeta, archivos[-length(archivos)]), readRDS), names(contratos))
   .rds_validar_corte(tablas, contratos)
   auditoria <- readRDS(file.path(carpeta, "_auditoria.rds"))
@@ -286,4 +297,31 @@ RecuperarCorteRDS <- function(almacen, dominio, generacion, usuario, motivo, ref
   evento <- c(metadatos, list(fecha = Sys.time(), operacion = "recuperacion", generacion = generacion))
   .rds_publicar(ruta, contratos, respaldo$tablas, c(respaldo$auditoria, list(evento)), generacion,
                 respaldo$manifiesto$procedencia)
+}
+
+# Lectura de una publicación para consumidores con contratos propios ----
+
+LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR", "data")) {
+  if (!dominio %in% c("operacional", "crm")) stop("Dominio de publicación inválido.", call. = FALSE)
+  partes <- strsplit(ruta, "/", fixed = TRUE)[[1L]]
+  if (!length(partes) || grepl("^/|/$", ruta) || any(!grepl("^[A-Za-z0-9_-]+$", partes))) {
+    stop("CRM_DATOS_DIR debe ser una ruta relativa interna al proyecto.", call. = FALSE)
+  }
+  carpeta <- normalizePath(raiz, winslash = "/", mustWork = TRUE)
+  for (parte in c(partes, dominio)) {
+    carpeta <- file.path(carpeta, parte)
+    enlace <- Sys.readlink(carpeta)
+    if (!is.na(enlace) && nzchar(enlace)) stop("Directorio de publicación inválido.", call. = FALSE)
+  }
+  puntero <- file.path(carpeta, "vigente.rds")
+  if (!file.exists(puntero)) {
+    if (length(list.files(carpeta, pattern = "^gen-"))) stop("Falta el puntero vigente.", call. = FALSE)
+    return(NULL)
+  }
+  id <- .rds_id_generacion(readRDS(puntero))
+  generacion <- file.path(carpeta, id)
+  manifiesto <- .rds_verificar_archivos(generacion, id)
+  nombres <- names(manifiesto$versiones)
+  tablas <- setNames(lapply(file.path(generacion, paste0(nombres, ".rds")), readRDS), nombres)
+  list(tablas = tablas, manifiesto = manifiesto)
 }
