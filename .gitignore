@@ -10,3 +10,5 @@
 *.zip
 APP/data/
 renv/library/
+
+/data/

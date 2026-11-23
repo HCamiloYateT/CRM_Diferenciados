@@ -4,4 +4,6 @@ CRM independiente para la gestión downstream de exportación de café excelso d
 
 `main` contiene la base documental. `desarrollo-inicial` reúne el [diagnóstico y el diseño preliminar](docs/diagnostico/01-diagnostico.md). La implementación comienza después de la Fase 1 y de la validación de los contratos que afecten cada módulo.
 
-La [Fase 2](docs/modelo_datos/README.md) documenta las decisiones aprobadas después del diagnóstico, el modelo y los scripts DDL pendientes de ejecución.
+La [Fase 2](docs/modelo_datos/README.md) documenta las decisiones aprobadas después del diagnóstico, el modelo lógico, los contratos operacionales y la arquitectura RDS.
+
+La [capa de persistencia RDS](docs/modelo_datos/persistencia_rds.md) centraliza contratos, lectura, escritura, auditoría y recuperación.

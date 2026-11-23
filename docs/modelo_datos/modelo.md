@@ -1,5 +1,7 @@
 # Modelo entidad-relación y contratos
 
+Para el almacenamiento y las restricciones ejecutables vigentes, consultar [persistencia RDS](persistencia_rds.md). Las referencias a FK, índices y DDL describen el diseño relacional de Fase 2. Las restricciones se trasladan a contratos R y a validadores de dominio al habilitar cada conjunto de datos.
+
 ## Modelo conceptual
 
 ```mermaid

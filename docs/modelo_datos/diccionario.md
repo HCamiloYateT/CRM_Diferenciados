@@ -1,6 +1,6 @@
-# Diccionario físico preliminar
+# Diccionario relacional histórico
 
-Derivado de los scripts 001 y 002. Los tipos son internos. La tabla conserva las declaraciones de campo,
+Derivado de los scripts históricos 001 y 002. Para persistencia vigente, consultar [RDS](persistencia_rds.md). Los tipos son internos. La tabla conserva las declaraciones de campo,
 incluidas claves, valores por defecto y colaciones. Un campo sin NOT NULL o PK admite nulo.
 PK y UNIQUE compuestas, FK, índices explícitos y CHECK aparecen debajo de cada entidad.
 InnoDB crea índices auxiliares para FK cuando se necesitan. El [modelo lógico](modelo.md) define el significado,
