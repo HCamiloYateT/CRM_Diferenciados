@@ -104,5 +104,38 @@ function(input, output, session) {
                           footer = modalButton("Cerrar")))
   })
 
+  mercado <- reactiveVal(NULL)
+  vigentes <- function(refrescar = FALSE) {
+    valor <- isolate(mercado())
+    hoy <- .HoyIndicadores()
+    if (!refrescar && !is.null(valor) && identical(valor$fecha, hoy)) return(valor$datos)
+    datos <- .ObtenerIndicadoresActuales()
+    mercado(if (any(is.finite(datos$Valor))) list(fecha = hoy, datos = datos) else NULL)
+    datos
+  }
+  abrir_comparacion <- function() {
+    updatebs4TabItems(session, "navegacion", selected = "comparacion_indicadores")
+  }
+  if (.MenuIndicadoresCorporativo()) {
+    menu <- racafeModulos::MenuHeaderServer("MenuIndicadores", items_r = TablaIndicadoresUI("ind_kpis"),
+                                            href = "#", footerText = "Comparación de Indicadores")
+    abierto <- reactive(input[["MenuIndicadores-open"]])
+    observeEvent(menu$footer_click(), abrir_comparacion())
+  } else {
+    abierto <- reactive(input$abrir_indicadores)
+    observeEvent(input$abrir_indicadores, {
+      showModal(modalDialog(title = "Indicadores", TablaIndicadoresUI("ind_kpis"),
+                            footer = tagList(.boton("comparar_mercado", "Comparación de Indicadores", "chart-line"),
+                                             modalButton("Cerrar"))))
+    })
+    observeEvent(input$comparar_mercado, {
+      removeModal()
+      abrir_comparacion()
+    })
+  }
+  TablaIndicadores("ind_kpis", abierto, vigentes)
+  ComparacionIndicadores("comparacion_indicadores",
+                         reactive(identical(input$navegacion, "comparacion_indicadores")), vigentes)
+
   for (id in names(.vistas)) VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando)
 }

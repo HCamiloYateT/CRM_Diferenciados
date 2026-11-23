@@ -29,3 +29,11 @@ El patrón de piezas y navegación sigue CRM Nacional y PlantillaBs4Dash. Cuando
 - Chromium local: arranque sin publicación, apertura de 44 vistas, controlbar, formularios desde dos accesos, botón Clientes, mensajes de carga y viewport de 420 px. En un segundo proyecto local con un corte sintético publicado por DataPrep se verificaron la lectura RDS, el filtro por destino y la descarga filtrada.
 
 La validación local utilizó bs4Dash, Shiny, racafeForms y los recursos de Compartido. Se verificaron los componentes de respaldo de tablas, KPI y gráficos. La revisión visual con racafeModulos, racafeShiny, racafeGraph y Plotly instalados queda pendiente en el entorno corporativo.
+
+## Indicadores de mercado
+
+El encabezado **Indicadores** y **Generalidades → Comparación de Indicadores** comparten los 16 códigos, la fórmula y las consultas de CRM Nacional en la revisión `00ccd4a`. La comparación consulta `CRMINDICADORES` en Analitica para las fechas históricas. Cuando la fecha final es hoy en Bogotá, usa la consulta vigente de FNC y las fuentes operacionales de mercado. Las fechas históricas se resuelven en una misma lectura por solicitud. La variación usa el valor inicial absoluto como denominador y queda ausente cuando ese valor es cero o falta.
+
+El botón Actualizar del menú solicita indicadores vigentes. La consulta de mercado es de solo lectura y la aplicación reutiliza en memoria de sesión el último resultado vigente del día; las actualizaciones explícitas solicitan valores nuevos. La configuración de conexión corresponde a `racafeBD`. Los formatos conservan COP/USD, ¢USD/lb, COP/carga, USD/lb y COP/kg. La tabla de comparación usa el componente Vancouver cuando está instalado y los colores identifican la dirección de la diferencia.
+
+Ejecutar `Rscript tests/indicadores_mercado.R` para verificar cálculos, fechas y unidades con fuentes sintéticas. La comparación de resultados en vivo requiere el entorno con acceso autorizado a las fuentes.

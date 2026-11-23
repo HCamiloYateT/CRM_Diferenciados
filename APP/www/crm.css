@@ -54,3 +54,8 @@
   .crm-acciones-grid { grid-template-columns: 1fr; }
 }
 .crm-controles-registro { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .45rem; }
+
+.crm-indicadores-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: 1rem; }
+.crm-indicadores-filtros > .btn { margin-bottom: 1rem; }
+.crm-indicadores-filtros .shiny-input-container { width: min(14rem, 100%); }
+.crm-indicadores-carga .crm-tabla td:last-child { text-align: right; }
