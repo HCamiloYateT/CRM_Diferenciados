@@ -54,6 +54,8 @@ probar <- function() {
     tablas
   })
   corte <- LeerCorteRDS(almacen, "crm")
+  publicacion <- LeerPublicacionRDS(raiz, "crm", ruta = "data")
+  stopifnot(identical(publicacion$tablas, corte$tablas), identical(publicacion$manifiesto, corte$manifiesto))
   stopifnot(length(corte$auditoria) == 3L, identical(segundo$anterior, primero$id),
             identical(corte$auditoria[[3L]]$anterior$nombre, "Ejemplo"),
             identical(corte$auditoria[[3L]]$nuevo$nombre, "Ejemplo actualizado"))
@@ -76,6 +78,7 @@ probar <- function() {
   vigente <- LeerCorteRDS(almacen, "crm")
   writeLines("corrupto", file.path(raiz, "data", "crm", vigente$manifiesto$id, "empresas.rds"))
   falla(LeerCorteRDS(almacen, "crm"))
+  falla(LeerPublicacionRDS(raiz, "crm", ruta = "data"))
   RecuperarCorteRDS(almacen, "crm", segundo$id, "prueba", "recuperación", "caso")
   recuperado <- LeerCorteRDS(almacen, "crm")
   stopifnot(identical(recuperado$tablas, corte$tablas),
