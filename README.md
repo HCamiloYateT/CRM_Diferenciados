@@ -7,3 +7,5 @@ CRM independiente para la gestión downstream de exportación de café excelso d
 La [Fase 2](docs/modelo_datos/README.md) documenta las decisiones aprobadas después del diagnóstico, el modelo lógico, los contratos operacionales y la arquitectura RDS.
 
 La [capa de persistencia RDS](docs/modelo_datos/persistencia_rds.md) centraliza contratos, lectura, escritura, auditoría y recuperación.
+
+[DataPrep.R y contrato de exportaciones del primer bloque](docs/modelo_datos/dataprep.md).
