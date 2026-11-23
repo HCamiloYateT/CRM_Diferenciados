@@ -3,7 +3,7 @@
 library(shiny)
 library(bs4Dash)
 
-.raiz_crm <- normalizePath(if (file.exists("misc/persistencia/rds.R")) ".." else ".", mustWork = TRUE)
+.raiz_crm <- normalizePath(if (file.exists("../DataPrep.R") && file.exists("global.R")) ".." else ".", mustWork = TRUE)
 .ruta_app <- file.path(.raiz_crm, "APP")
 .compartido <- paste0("https://raw.githubusercontent.com/HCamiloYateT/Compartido/",
                       "492901a0943893e4a464ab87d7c18700499a1814")
@@ -24,7 +24,8 @@ if (nzchar(.compartido_local)) {
 }
 .titulo <- "CRM Diferenciados"
 
-for (.archivo in c("persistencia/rds.R", "datos/dataprep_pedidos.R", "config/vistas.R", "datos/publicacion_ui.R",
+source(file.path(.raiz_crm, "DataPrep.R"), local = TRUE)
+for (.archivo in c("config/vistas.R", "datos/publicacion_ui.R",
                    "ui/componentes.R", "modules/vista.R", "modules/productos/datos.R", "modules/productos/cestas.R",
                    "modules/productos/modulo.R", "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R", "ui/header.R", "ui/sidebar.R", "ui/controlbar.R",
