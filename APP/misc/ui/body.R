@@ -12,6 +12,8 @@
   tabs <- lapply(names(.vistas), function(id) {
     bs4TabItem(tabName = id, VistaUI(id, .vistas[[id]]))
   })
+  tabs <- c(tabs, list(bs4TabItem(tabName = "comparacion_indicadores",
+                                 ComparacionIndicadoresUI("comparacion_indicadores"))))
   bs4DashBody(recursos, .overlay_crm(), div(class = "crm-corte", uiOutput("estado_corte")),
               do.call(bs4TabItems, tabs))
 }

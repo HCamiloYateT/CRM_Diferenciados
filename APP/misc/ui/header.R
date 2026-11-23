@@ -44,6 +44,13 @@
 .header_crm <- function() {
   marca <- dashboardBrand(title = .titulo, href = "https://analitica.racafe.com/PortalAnalitica/",
                           image = .logo_crm)
+  indicadores <- if (.MenuIndicadoresCorporativo()) {
+    racafeModulos::MenuHeaderUI("MenuIndicadores", icon = shiny::icon("chart-line"),
+                                min_width = "400px", title = "Indicadores")
+  } else {
+    shiny::tags$li(class = "nav-item dropdown crm-nav-acciones",
+                   .boton("abrir_indicadores", "Indicadores", "chart-line"))
+  }
   bs4DashNavbar(title = marca, status = "white", sidebarIcon = icon("bars"), controlbarIcon = icon("sliders"),
                 leftUi = tags$li(class = "nav-item dropdown crm-nav-acciones",
                                  .boton("actualizar", "Actualizar", "rotate"),
@@ -52,7 +59,7 @@
                                  .boton("header_gestion", "Gestión", "clipboard-list"),
                                  .boton("header_oportunidad", "Oportunidad", "bullseye"),
                                  .boton("header_muestra", "Muestra", "flask")),
-                rightUi = tags$li(class = "nav-item dropdown crm-nav-acciones",
+                rightUi = tagList(indicadores, tags$li(class = "nav-item dropdown crm-nav-acciones",
                                   .boton("notificaciones", "Alertas", "bell"),
-                                  uiOutput("identidad_header", inline = TRUE)))
+                                  uiOutput("identidad_header", inline = TRUE))))
 }

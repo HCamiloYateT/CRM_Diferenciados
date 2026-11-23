@@ -23,7 +23,8 @@ if (nzchar(.compartido_local)) {
 .titulo <- "CRM Diferenciados"
 
 for (.archivo in c("persistencia/rds.R", "datos/dataprep_pedidos.R", "config/vistas.R", "datos/publicacion_ui.R",
-                   "ui/componentes.R", "modules/vista.R", "ui/header.R", "ui/sidebar.R", "ui/controlbar.R",
+                   "ui/componentes.R", "modules/vista.R", "modules/indicadores_mercado/constantes.R",
+                   "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R", "ui/header.R", "ui/sidebar.R", "ui/controlbar.R",
                    "ui/body.R", "ui/footer.R", "ui/preloader.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
 }
