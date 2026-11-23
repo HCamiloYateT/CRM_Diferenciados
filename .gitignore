@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Rproj.user/
+.Renviron
+.env
+.env.*
+*.log
+*.rds
+*.xlsx
+*.zip
+APP/data/
+renv/library/
