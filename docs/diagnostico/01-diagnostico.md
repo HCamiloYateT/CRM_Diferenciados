@@ -1,5 +1,7 @@
 # CRM Diferenciados | Diagnóstico de fases 0 y 1
 
+> Este documento conserva el diagnóstico de Fase 1. Para las reglas vigentes, consultar las [decisiones aprobadas y el modelo de Fase 2](../modelo_datos/README.md).
+
 **Corte documental:** 23 de noviembre de 2026. **Destino:** [CRM_Diferenciados](https://github.com/HCamiloYateT/CRM_Diferenciados). Repositorio público preexistente, sin referencias antes de inicializar. Rama principal `main`, commit inicial `7dd4dbe427b666acf51e2e8c7cb4cb6fc1f6ef6c`. Rama de diagnóstico `desarrollo-inicial`.
 
 La instrucción consolidada del 23/11/2026 fija el alcance en **`LinNegCod = 20000` original**, para café excelso diferenciado de exportación. Sustituye el alcance preliminar que señalaba 21000. El diagnóstico es documental y estático. Los nombres de tablas y campos citados son evidencias de código o del levantamiento y requieren comprobación en las fuentes operacionales antes de cerrar los contratos.
