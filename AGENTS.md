@@ -1,11 +1,8 @@
 # Guía de trabajo
 
-- Trabajar en `desarrollo-inicial` con historial independiente y preservar cambios locales.
-- Usar R, Shiny y bs4Dash y revisar las bibliotecas corporativas antes de crear componentes.
-- Usar UTF-8, nombres y comentarios claros, y el estilo Racafé de R/Shiny.
-- Mantener separados los datos operacionales y la gestión manual auditada.
-- Conservar el código de línea original, la clave de origen y la granularidad.
-- Documentar procedencia y estado de aprobación de reglas y supuestos.
-- Excluir credenciales y datos operacionales del control de versiones.
-- Usar persistencia RDS centralizada. El ETL publica exclusivamente en el dominio operacional.
-- Validar en proporción al cambio y documentar resultados y pendientes.
+- Cambiar solo los scripts necesarios, manteniendo el estilo Racafé y los contratos de entrada y salida.
+- Mantener `DataPrep.R` autocontenido. Consultar fuentes autorizadas en modo lectura y publicar solo datos operacionales.
+- Preservar la línea original 20000, las llaves por compañía y el grano de pedido y línea.
+- Reutilizar componentes corporativos y preservar los cambios existentes. Excluir credenciales y datos de Git.
+- Validar de forma focalizada con parseo R y una comprobación del flujo afectado cuando corresponda.
+- Cerrar cada cambio con un PR.

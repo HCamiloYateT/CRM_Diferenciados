@@ -3,13 +3,14 @@
 library(shiny)
 library(bs4Dash)
 
-.raiz_crm <- normalizePath(if (file.exists("misc/persistencia/rds.R")) ".." else ".", mustWork = TRUE)
+.raiz_crm <- normalizePath(if (file.exists("../DataPrep.R") && file.exists("global.R")) ".." else ".", mustWork = TRUE)
 .ruta_app <- file.path(.raiz_crm, "APP")
 .compartido <- paste0("https://raw.githubusercontent.com/HCamiloYateT/Compartido/",
                       "492901a0943893e4a464ab87d7c18700499a1814")
 .compartido_local <- Sys.getenv("CRM_COMPARTIDO_DIR")
 .logo_crm <- paste0(.compartido, "/img/logo2.png")
 .estilos_crm <- paste0(.compartido, "/Styles/style.css")
+.estilos_nacional <- paste0(.compartido, "/Styles/crm-nacional.css")
 if (nzchar(.compartido_local)) {
   if (!file.exists(file.path(.compartido_local, "img", "logo2.png")) ||
       !file.exists(file.path(.compartido_local, "Styles", "style.css"))) {
@@ -19,11 +20,14 @@ if (nzchar(.compartido_local)) {
   shiny::addResourcePath("crm-estilos", file.path(.compartido_local, "Styles"))
   .logo_crm <- "crm-marca/logo2.png"
   .estilos_crm <- "crm-estilos/style.css"
+  .estilos_nacional <- "crm-estilos/crm-nacional.css"
 }
 .titulo <- "CRM Diferenciados"
 
-for (.archivo in c("persistencia/rds.R", "datos/dataprep_pedidos.R", "config/vistas.R", "datos/publicacion_ui.R",
-                   "ui/componentes.R", "modules/vista.R", "modules/indicadores_mercado/constantes.R",
+source(file.path(.raiz_crm, "DataPrep.R"), local = TRUE)
+for (.archivo in c("config/vistas.R", "datos/publicacion_ui.R",
+                   "ui/componentes.R", "modules/vista.R", "modules/productos/datos.R", "modules/productos/cestas.R",
+                   "modules/productos/modulo.R", "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R", "ui/header.R", "ui/sidebar.R", "ui/controlbar.R",
                    "ui/body.R", "ui/footer.R", "ui/preloader.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
