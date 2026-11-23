@@ -106,7 +106,12 @@ ProductosUI <- function(id) {
 ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
   shiny::moduleServer(id, function(input, output, session) {
     pendiente <- shiny::reactiveVal(NULL)
-    hechos <- shiny::reactive(tryCatch(.prod_hechos(publicaciones()$operacional), error = identity))
+    hechos <- shiny::reactive({
+      pub <- publicaciones()$operacional
+      preparado <- pub$tablas$hechos_productos
+      if (is.data.frame(preparado)) return(preparado)
+      tryCatch(.prod_hechos(pub), error = identity)
+    })
     usar <- function() {
       d <- hechos()
       shiny::req(!is.null(d), !inherits(d, "error"))
@@ -134,7 +139,17 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       d$periodo <- format(if (usar_movimiento) d$fecha_embarque else d$fecha, "%Y-%m")
       d
     })
-    catalogo <- shiny::reactive(.prod_catalogo(pedidos(), publicaciones()$operacional$manifiesto$procedencia$corte))
+    catalogo_corte <- shiny::reactive({
+      pub <- publicaciones()$operacional
+      nombre <- if (input$dimension == "marca") "dim_marcas" else "dim_nombres_comerciales"
+      preparado <- pub$tablas[[nombre]]
+      if (is.data.frame(preparado)) return(preparado)
+      .prod_catalogo(.prod_dimension(usar(), input$dimension), pub$manifiesto$procedencia$corte)
+    })
+    catalogo <- shiny::reactive({
+      cat <- catalogo_corte()
+      cat[cat$item %in% pedidos()$item, , drop = FALSE]
+    })
     ranking <- shiny::reactive({
       d <- ejecucion()
       d <- d[!is.na(d$item), , drop = FALSE]
@@ -147,7 +162,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       if (input$medida == "Embarcado") r$Sacos <- rep(NA_real_, nrow(r))
       r$Acumulada <- rep(NA_real_, nrow(r))
       r$Acumulada[pareto] <- cumsum(r$Participacion[pareto])
-      cat <- .prod_catalogo(d, publicaciones()$operacional$manifiesto$procedencia$corte)
+      cat <- catalogo_corte()
       r$Nombre <- cat$nombre[match(r$item, cat$item)]
       shiny::req(length(input$top) == 1L, is.finite(input$top), input$top >= 1)
       head(r, min(50L, as.integer(input$top)))
@@ -174,6 +189,11 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
     })
     traza <- shiny::reactive({
       d <- pedidos()
+      preparado <- publicaciones()$operacional$tablas$relacion_marca_nombre
+      if (is.data.frame(preparado)) {
+        ids <- .prod_id(d$pedido_id, d$PdcLin)
+        return(preparado[.prod_id(preparado$pedido_id, preparado$PdcLin) %in% ids, , drop = FALSE])
+      }
       campos <- c("CiaCod", "pedido_id", "PdcLin", "lote", "fecha", "fuente", "marca", "nombre", "PerCod", "sacos")
       d[!is.na(d$marca) & !is.na(d$nombre), campos, drop = FALSE]
     })

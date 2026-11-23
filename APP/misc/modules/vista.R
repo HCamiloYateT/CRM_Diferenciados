@@ -63,6 +63,10 @@ VistaUI <- function(id, vista) {
   format(x, big.mark = ".", decimal.mark = ",", trim = TRUE, scientific = FALSE, digits = 10L)
 }
 
+.sin_filtros_vista <- function(filtros) {
+  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado")])) && !nzchar(filtros$percod %||% "")
+}
+
 .directorio_ui_datos <- function(datos, operativo) {
   if (is.null(datos) || is.null(operativo$pedidos)) return(datos)
   pedidos <- operativo$pedidos
@@ -91,7 +95,10 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         shiny::req(length(rango) == 2L, !anyNA(rango), rango[1L] <= rango[2L])
         tabla <- tabla[which(tabla$fecha_creacion >= rango[1L] & tabla$fecha_creacion <= rango[2L]), , drop = FALSE]
       }
-      if (id == "directorio") tabla <- .directorio_ui_datos(tabla, operativo())
+      if (id == "directorio" && !is.null(tabla)) {
+        preparado <- all(c("ultimo_pedido", "pedidos_del_universo", "sacos_del_universo") %in% names(tabla))
+        if (!preparado || !.sin_filtros_vista(filtros())) tabla <- .directorio_ui_datos(tabla, operativo())
+      }
       if (id == "detalle" && !is.null(tabla) && nzchar(input$registro %||% "")) {
         tabla <- tabla[tabla$pedido_id == input$registro, , drop = FALSE]
       }
@@ -133,7 +140,21 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
     if (id != "individual") .tabla_server("tabla", datos, output)
 
     if (!is.null(vista$grafico)) {
-      serie <- reactive(.datos_grafico(vista$grafico, datos(), operativo()))
+      serie <- reactive({
+        tabla <- datos()
+        if (.sin_filtros_vista(filtros()) && !is.null(tabla)) {
+          operacion <- publicaciones()$operacional$tablas
+          if (vista$grafico == "pedidos" && is.data.frame(operacion$pedidos_por_periodo)) {
+            x <- operacion$pedidos_por_periodo
+            return(data.frame(etiqueta = x$periodo, total = x$pedidos, grupo = rep("Total", nrow(x))))
+          }
+          if (vista$grafico == "evolucion" && is.data.frame(operacion$pedidos_por_destino)) {
+            x <- operacion$pedidos_por_destino
+            return(data.frame(etiqueta = x$periodo, total = x$pedidos, grupo = x$pais))
+          }
+        }
+        .datos_grafico(vista$grafico, tabla, operativo())
+      })
       output$panel_grafico <- renderUI({
         dat <- serie()
         titulo <- switch(vista$grafico, pedidos = "Pedidos por mes de creación", cohortes = "Clientes por cohorte",

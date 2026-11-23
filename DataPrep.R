@@ -167,9 +167,11 @@ LeerRDS <- function(almacen, nombre, dominio) {
 # Escrituras y auditoría ----
 
 .rds_bloquear <- function(ruta) {
-  if (!requireNamespace("filelock", quietly = TRUE)) stop("Instale el paquete filelock.", call. = FALSE)
-  bloqueo <- filelock::lock(file.path(ruta, "escritura.lock"), exclusive = TRUE, timeout = 10000)
-  if (is.null(bloqueo)) stop("No fue posible adquirir el bloqueo de escritura RDS.", call. = FALSE)
+  bloqueo <- file.path(ruta, ".escritura-activa")
+  # La creación del directorio es exclusiva. Si un proceso termina abruptamente, revisar el bloqueo antes de retirarlo.
+  if (!dir.create(bloqueo, mode = "0700", showWarnings = FALSE)) {
+    stop("No se pudo adquirir el bloqueo de escritura en ", bloqueo, ".", call. = FALSE)
+  }
   bloqueo
 }
 
@@ -252,7 +254,7 @@ ActualizarCorteRDS <- function(almacen, dominio, funcion, usuario = NULL, motivo
                                referencia = NULL, procedencia = NULL) {
   ruta <- .rds_dominio(almacen, dominio)
   bloqueo <- .rds_bloquear(ruta)
-  on.exit(filelock::unlock(bloqueo))
+  on.exit(unlink(bloqueo, recursive = TRUE))
   contratos <- almacen$contratos[[dominio]]
   vigente <- .rds_vigente(ruta, contratos)
   tablas <- funcion(vigente$tablas)
@@ -288,7 +290,7 @@ LeerBackupRDS <- function(almacen, dominio, generacion) {
 RecuperarCorteRDS <- function(almacen, dominio, generacion, usuario, motivo, referencia) {
   ruta <- .rds_dominio(almacen, dominio)
   bloqueo <- .rds_bloquear(ruta)
-  on.exit(filelock::unlock(bloqueo))
+  on.exit(unlink(bloqueo, recursive = TRUE))
   contratos <- almacen$contratos[[dominio]]
   vigente <- tryCatch(.rds_vigente(ruta, contratos), error = identity)
   if (!inherits(vigente, "error")) stop("El corte vigente es legible. Use una actualización auditada.", call. = FALSE)
@@ -327,18 +329,6 @@ LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR",
 }
 
 # Adaptadores y validaciones ----
-
-.dp_leer <- function(carpeta, nombre, requeridas, opcional = FALSE) {
-  ruta <- file.path(carpeta, paste0(nombre, ".csv"))
-  if (opcional && !file.exists(ruta)) return(NULL)
-  datos <- utils::read.csv(ruta, colClasses = "character", na.strings = "", check.names = FALSE,
-                           strip.white = FALSE, fileEncoding = "UTF-8")
-  if (anyDuplicated(names(datos)) || !all(requeridas %in% names(datos))) {
-    faltantes <- setdiff(requeridas, names(datos))
-    stop("Columnas duplicadas o faltantes en ", nombre, ": ", paste(faltantes, collapse = ", "), call. = FALSE)
-  }
-  datos
-}
 
 .dp_col <- function(datos, nombre) {
   if (nombre %in% names(datos)) return(datos[[nombre]])
@@ -504,17 +494,24 @@ LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR",
   primero$cohorte <- format(primero$fecha_creacion, "%Y-%m")
   primero$antiguedad_dias <- as.integer(corte - primero$fecha_creacion)
   tablas$primer_pedido_cliente <- primero
-  tablas$cohortes_clientes <- primero[c("PerCod", "cohorte")]
+  tablas$cohortes_clientes <- primero[c("PerCod", "cohorte", "fecha_creacion", "pedido_id")]
+  cohortes <- table(primero$cohorte)
+  tablas$cohortes_mensuales <- data.frame(periodo = as.character(names(cohortes)), clientes = as.integer(cohortes))
   tablas$clientes_comerciales <- merge(tablas$clientes, primero, by = "PerCod", all.x = TRUE, sort = FALSE)
   clientes <- tablas$clientes_comerciales
   clientes$tiene_pedidos <- clientes$PerCod %in% pedidos$PerCod
   clientes$fecha_primera_observable <- !is.na(clientes$fecha_creacion)
-  tablas$clientes_comerciales <- clientes
   volumen <- unique(pedidos["PerCod"])
   volumen$sacos <- .dp_agregar(pedidos$PerCod, pedidos$sacos, volumen$PerCod)
   volumen$kg <- .dp_agregar(pedidos$PerCod, pedidos$kg, volumen$PerCod)
   volumen$pedidos <- as.integer(table(pedidos$PerCod)[volumen$PerCod])
   tablas$volumen_cliente <- volumen
+  ultima <- tapply(as.numeric(candidatos$fecha_creacion), candidatos$PerCod, max)
+  indices <- match(clientes$PerCod, names(ultima))
+  clientes$ultimo_pedido <- as.Date(as.numeric(unname(ultima)[indices]), origin = "1970-01-01")
+  clientes$pedidos_del_universo <- as.integer(table(pedidos$PerCod)[clientes$PerCod])
+  clientes$sacos_del_universo <- .dp_agregar(pedidos$PerCod, pedidos$sacos, clientes$PerCod)
+  tablas$clientes_comerciales <- clientes
   mes <- format(candidatos$fecha_creacion, "%Y-%m")
   periodos <- unique(mes)
   tablas$pedidos_por_periodo <- data.frame(periodo = periodos, pedidos = as.integer(table(mes)[periodos]),
@@ -539,7 +536,9 @@ ContratosOperacionales <- function(tablas) {
   claves <- list(clientes = "PerCod", unidades = "UMeCod", pedidos = "pedido_id",
                  lineas_pedido = c("pedido_id", "PdcLin"),
                  primer_pedido_cliente = "PerCod", cohortes_clientes = "PerCod", clientes_comerciales = "PerCod",
-                 volumen_cliente = "PerCod", pedidos_por_periodo = "periodo",
+                 volumen_cliente = "PerCod", pedidos_por_periodo = "periodo", cohortes_mensuales = "periodo",
+                 hechos_productos = c("pedido_id", "PdcLin"), dim_marcas = "item", dim_nombres_comerciales = "item",
+                 relacion_marca_nombre = c("pedido_id", "PdcLin"), pedidos_por_destino = c("periodo", "pais"),
                  jerarquia_cuentas = c("PerCod", "desde"), paises = "iso2", homologaciones = "fuente",
                  referencias_embarque = c("pedido_id", "referencia"),
                  calidad = "incidencia")
@@ -554,6 +553,8 @@ ContratosOperacionales <- function(tablas) {
   contratos$referencias_embarque$referencias <- list(list(tabla = "pedidos", columnas = "pedido_id"))
   contratos$primer_pedido_cliente$referencias <- list(list(tabla = "clientes", columnas = "PerCod"),
                                                      list(tabla = "pedidos", columnas = "pedido_id"))
+  contratos$hechos_productos$referencias <- list(list(tabla = "lineas_pedido", columnas = c("pedido_id", "PdcLin")))
+  contratos$relacion_marca_nombre$referencias <- contratos$hechos_productos$referencias
   contratos$lineas_pedido$validar <- function(datos) {
     if (anyNA(datos$LinNegCod) || any(datos$LinNegCod != "20000")) stop("Línea fuera de alcance.")
   }
@@ -593,7 +594,7 @@ ContratosOperacionales <- function(tablas) {
   cab <- pedidos[match(lineas$pedido_id, pedidos$pedido_id), , drop = FALSE]
   if (anyNA(cab$pedido_id)) stop("Hay líneas sin cabecera en productos.")
   fuentes_linea <- tablas$raw_lineas
-  originales <- which(fuentes_linea$fuente == "lineas.csv")
+  originales <- which(fuentes_linea$fuente %in% c("EXPPEDI1", "lineas.csv"))
   raw <- if (length(originales)) fuentes_linea$datos[[originales[1L]]] else NULL
   if (is.null(raw)) raw <- data.frame()
   if (nrow(raw)) {
@@ -731,7 +732,7 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
   almacen <- AbrirPersistenciaRDS(raiz, list(operacional = contratos))
   ruta <- .rds_dominio(almacen, "operacional")
   bloqueo <- .rds_bloquear(ruta)
-  on.exit(filelock::unlock(bloqueo))
+  on.exit(unlink(bloqueo, recursive = TRUE))
   anterior <- LeerPublicacionRDS(raiz, "operacional")
   .rds_validar_corte(tablas, contratos)
   .rds_publicar(ruta, contratos, tablas, list(), anterior$manifiesto$id, procedencia)
@@ -847,97 +848,95 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
        catalogos = catalogos, paises = paises, fuentes = stats::setNames(rep("syscafe", length(fuentes)), fuentes))
 }
 
-# Ejecución del bloque de pedidos y clientes ----
+# Productos y destinos desde los pedidos ----
 
-EjecutarDataPrep <- function(carpeta = NULL, corte = as.Date(Sys.time(), tz = "America/Bogota"),
+.prod_dimension <- function(datos, dimension) {
+  datos$codigo <- datos[[dimension]]
+  datos$descripcion <- datos[[paste0(dimension, "_nombre")]]
+  datos$item <- .prod_id(datos$CiaCod, datos$codigo)
+  datos
+}
+
+.prod_catalogo <- function(datos, corte) {
+  identificados <- datos[!is.na(datos$item), , drop = FALSE]
+  grupos <- split(identificados, identificados$item)
+  filas <- lapply(grupos, function(x) {
+    nombres <- sort(unique(x$descripcion[!is.na(x$descripcion)]))
+    data.frame(item = x$item[1L], CiaCod = x$CiaCod[1L], codigo = x$codigo[1L],
+               nombre = if (length(nombres) == 1L) nombres else NA_character_,
+               descripciones = paste(nombres, collapse = " | "), conflicto = length(nombres) > 1L,
+               linea_negocio = "20000", fuente = paste(sort(unique(x$fuente)), collapse = ", "),
+               corte = rep(as.character(corte)[1L], 1L))
+  })
+  if (!length(filas)) {
+    return(data.frame(item = character(), CiaCod = character(), codigo = character(), nombre = character(),
+                      descripciones = character(), conflicto = logical(), linea_negocio = character(),
+                      fuente = character(), corte = character()))
+  }
+  do.call(rbind, filas)
+}
+
+.prod_contar <- function(x) length(unique(x[!is.na(x) & nzchar(x)]))
+
+.dp_productos_destinos <- function(tablas, corte) {
+  hechos <- .prod_hechos(list(tablas = tablas))
+  tablas$hechos_productos <- hechos
+  tablas$dim_marcas <- .prod_catalogo(.prod_dimension(hechos, "marca"), corte)
+  tablas$dim_nombres_comerciales <- .prod_catalogo(.prod_dimension(hechos, "nombre"), corte)
+  observadas <- !is.na(hechos$marca) & !is.na(hechos$nombre)
+  campos <- c("pedido_id", "PdcLin", "CiaCod", "PerCod", "fecha", "marca", "nombre", "sacos", "fuente")
+  tablas$relacion_marca_nombre <- hechos[observadas, campos, drop = FALSE]
+
+  # Un pedido con varios destinos cuenta una vez por destino. Los sacos se conservan en su grano de línea.
+  destino <- hechos[!is.na(hechos$fecha), , drop = FALSE]
+  destino$periodo <- format(destino$fecha, "%Y-%m")
+  destino$pais[is.na(destino$pais) | !nzchar(destino$pais)] <- "Sin código"
+  grupos <- split(destino, .prod_id(destino$periodo, destino$pais))
+  filas <- lapply(grupos, function(x) {
+    data.frame(periodo = x$periodo[1L], pais = x$pais[1L], pedidos = .prod_contar(x$pedido_id),
+               clientes = .prod_contar(x$PerCod), sacos = .dp_suma(x$sacos))
+  })
+  tablas$pedidos_por_destino <- if (length(filas)) do.call(rbind, filas) else
+    data.frame(periodo = character(), pais = character(), pedidos = integer(), clientes = integer(), sacos = numeric())
+  tablas
+}
+
+# Extracción, objetos de consumo y publicación ----
+
+EjecutarDataPrep <- function(corte = as.Date(Sys.time(), tz = "America/Bogota"),
                               raiz = ".", consulta = racafeBD::ConsultaSistema) {
   fecha_corte <- .dp_fecha(as.character(corte))
   if (length(fecha_corte) != 1L || is.na(fecha_corte) || !identical(as.character(fecha_corte), as.character(corte))) {
     stop("Indique una fecha de corte YYYY-MM-DD.", call. = FALSE)
   }
-  # El informe incluso de cortes rechazados se conserva fuera de la generación vigente.
-  datos <- AbrirPersistenciaRDS(raiz, list(operacional = list(
-    calidad = list(version = "v1", prototipo = data.frame(incidencia = integer()), clave = "incidencia")
-  )))$datos
-  carpeta_auditoria <- .rds_directorio(file.path(datos, "auditoria_etl"), normalizePath(raiz, winslash = "/"))
-  informe <- tempfile("dataprep-", tmpdir = carpeta_auditoria, fileext = ".csv")
-  registrar <- function(estado, detalle, incidencias = NULL) {
-    registro <- data.frame(corte = as.character(fecha_corte), estado, clave = NA_character_,
-                           codigo = NA_character_, detalle)
-    if (!is.null(incidencias) && nrow(incidencias)) {
-      filas <- data.frame(corte = as.character(fecha_corte), estado, incidencias[c("clave", "codigo")],
-                          detalle = NA_character_)
-      registro <- rbind(registro, filas)
-    }
-    utils::write.csv(registro, informe, row.names = FALSE, na = "")
+
+  # Pedidos, clientes y catálogos ----
+  origen <- .dp_extraer(fecha_corte, consulta)
+  tablas <- .dp_pedidos(origen$pedidos, origen$lineas, origen$clientes, origen$unidades, fecha_corte)
+  fuentes <- c(raw_clientes = "NPERSONA/NCLIENTE", raw_pedidos = "EXPPEDID",
+               raw_lineas = "EXPPEDI1", raw_unidades = "NUNIMEDI")
+  for (nombre in names(fuentes)) {
+    tablas[[nombre]] <- data.frame(fuente = unname(fuentes[nombre]), datos = I(list(tablas[[nombre]])))
   }
-  tryCatch({
-    archivos <- c(raw_clientes = "clientes.csv", raw_pedidos = "pedidos.csv", raw_lineas = "lineas.csv",
-                  raw_unidades = "unidades.csv")
-    extraccion <- NULL
-    firmas <- character()
-    if (is.null(carpeta)) {
-      extraccion <- .dp_extraer(fecha_corte, consulta)
-      raw_clientes <- extraccion$clientes
-      raw_pedidos <- extraccion$pedidos
-      raw_lineas <- extraccion$lineas
-      raw_unidades <- extraccion$unidades
-    } else {
-      fuentes <- c(unname(archivos), "lotes_productos.csv")
-      origen <- setNames(file.path(carpeta, fuentes), fuentes)
-      firmar <- function() {
-        presentes <- origen[file.exists(origen)]
-        setNames(unname(tools::md5sum(presentes)), names(presentes))
-      }
-      firmas <- firmar()
-      raw_clientes <- .dp_leer(carpeta, "clientes", "PerCod")
-      raw_pedidos <- .dp_leer(carpeta, "pedidos", c("CiaCod", "PdcCod", "CliNit", "PdcFecCre"))
-      raw_lineas <- .dp_leer(carpeta, "lineas", c("CiaCod", "PdcCod", "PdcLin", "LinNegCod", "PdcCan"))
-      raw_unidades <- .dp_leer(carpeta, "unidades", "UMeCod", opcional = TRUE)
-    }
-    tablas <- .dp_pedidos(raw_pedidos, raw_lineas, raw_clientes, raw_unidades, fecha_corte)
-    tablas <- .dp_analitica(tablas, fecha_corte)
-    tablas$calidad$incidencia <- seq_len(nrow(tablas$calidad))
-    cifras <- sprintf("Cabeceras: %d; líneas: %d; líneas fuera de alcance: %d; incidencias: %d.",
-                      nrow(tablas$pedidos), nrow(tablas$lineas_pedido),
-                      nrow(raw_lineas) - nrow(tablas$lineas_pedido), nrow(tablas$calidad))
-    for (nombre in names(archivos)) {
-      tablas[[nombre]] <- data.frame(fuente = unname(archivos[nombre]), datos = I(list(tablas[[nombre]])))
-    }
-    if ("lotes_productos.csv" %in% names(firmas)) {
-      lotes <- .dp_leer(carpeta, "lotes_productos", c("CiaCod", "CLPdcCod", "CLPdcLin", "CLLotCod",
-                                                      "CLLinNegCo", "SacosAsignados"))
-      normalizados <- .prod_normalizar_lotes(lotes)
-      lotes <- lotes[lotes$CLLinNegCo == "20000", , drop = FALSE]
-      tablas$raw_lineas <- rbind(tablas$raw_lineas,
-                                data.frame(fuente = "lotes_productos.csv", datos = I(list(lotes))))
-      .prod_hechos(list(tablas = c(tablas, list(lotes_productos = normalizados))))
-    }
-    if (!is.null(extraccion)) {
-      catalogos <- extraccion$catalogos
-      tablas$homologaciones <- data.frame(fuente = names(catalogos), datos = I(unname(catalogos)))
-      iso <- sort(unique(stats::na.omit(extraccion$paises$iso2)))
-      tablas$paises <- data.frame(iso2 = iso, nombre = .dp_catalogo_valor(iso, extraccion$paises, "iso2", "PaiNom"))
-    } else if (anyNA(firmas) || !identical(firmar(), firmas)) {
-      stop("Las exportaciones cambiaron durante el ETL.")
-    }
-    registrar("validado", cifras, tablas$calidad)
-    fuentes <- if (is.null(extraccion)) firmas else extraccion$fuentes
-    procedencia <- list(fuentes = fuentes, corte = fecha_corte, informe = basename(informe))
-    manifiesto <- PublicarOperacionalRDS(raiz, tablas, ContratosOperacionales(tablas), procedencia)
-    message("Corte operacional publicado: ", manifiesto$id, ". Informe: ", informe)
-    invisible(list(manifiesto = manifiesto, informe = informe))
-  }, error = function(e) {
-    registrar("rechazado", conditionMessage(e))
-    stop(conditionMessage(e), " Informe: ", informe, call. = FALSE)
-  })
+  tablas$homologaciones <- data.frame(fuente = names(origen$catalogos), datos = I(unname(origen$catalogos)))
+  iso <- sort(unique(stats::na.omit(origen$paises$iso2)))
+  tablas$paises <- data.frame(iso2 = iso, nombre = .dp_catalogo_valor(iso, origen$paises, "iso2", "PaiNom"))
+
+  # Objetos analíticos para la app ----
+  tablas <- .dp_analitica(tablas, fecha_corte)
+  tablas <- .dp_productos_destinos(tablas, fecha_corte)
+  tablas$calidad$incidencia <- seq_len(nrow(tablas$calidad))
+
+  # Las exportaciones, los embarques efectivos y FCC quedan pendientes de fuente validada.
+  procedencia <- list(fuentes = origen$fuentes, corte = fecha_corte,
+                      pendientes = c("exportaciones", "lotes", "embarques", "margenes"))
+  manifiesto <- PublicarOperacionalRDS(raiz, tablas, ContratosOperacionales(tablas), procedencia)
+  message("Corte operacional publicado: ", manifiesto$id, " · ", length(tablas), " objetos.")
+  invisible(manifiesto)
 }
 
 if (sys.nframe() == 0L) {
   argumentos <- commandArgs(trailingOnly = TRUE)
-  if (!length(argumentos)) {
-    EjecutarDataPrep()
-  } else if (length(argumentos) == 2L) {
-    EjecutarDataPrep(argumentos[1L], argumentos[2L])
-  } else stop("Uso: Rscript DataPrep.R [<carpeta-exportaciones> <YYYY-MM-DD>]", call. = FALSE)
+  if (length(argumentos) > 1L) stop("Uso: Rscript DataPrep.R [YYYY-MM-DD]", call. = FALSE)
+  if (length(argumentos)) EjecutarDataPrep(corte = argumentos[[1L]]) else EjecutarDataPrep()
 }
