@@ -1,29 +1,5 @@
 # Análisis de productos ----
 
-.prod_dimension <- function(datos, dimension) {
-  datos$codigo <- datos[[dimension]]
-  datos$descripcion <- datos[[paste0(dimension, "_nombre")]]
-  datos$item <- .prod_id(datos$CiaCod, datos$codigo)
-  datos
-}
-
-.prod_catalogo <- function(datos, corte) {
-  identificados <- datos[!is.na(datos$item), , drop = FALSE]
-  grupos <- split(identificados, identificados$item)
-  filas <- lapply(grupos, function(x) {
-    nombres <- sort(unique(x$descripcion[!is.na(x$descripcion)]))
-    data.frame(item = x$item[1L], CiaCod = x$CiaCod[1L], codigo = x$codigo[1L],
-               nombre = if (length(nombres) == 1L) nombres else NA_character_,
-               descripciones = paste(nombres, collapse = " | "), conflicto = length(nombres) > 1L,
-               linea_negocio = "20000", fuente = paste(sort(unique(x$fuente)), collapse = ", "),
-               corte = rep(as.character(corte)[1L], 1L))
-  })
-  if (!length(filas)) return(data.frame(item = character(), codigo = character(), nombre = character()))
-  do.call(rbind, filas)
-}
-
-.prod_contar <- function(x) length(unique(x[!is.na(x) & nzchar(x)]))
-
 .prod_resumen <- function(datos, claves) {
   agrupado <- dplyr::group_by(datos, dplyr::across(dplyr::all_of(claves)))
   dplyr::summarise(agrupado, Sacos = .dp_suma(sacos), Embarcado = if (all(is.na(embarcado))) NA_real_ else
