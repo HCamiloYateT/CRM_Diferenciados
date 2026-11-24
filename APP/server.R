@@ -38,8 +38,7 @@ server <- function(input, output, session) {
 
   # Outputs ----
   ## Controlbar ----
-  observeEvent(input$control_tarea, abrir_accion("tarea"))
-  observeEvent(input$control_gestion, abrir_accion("gestion"))
+  CrearNotas("CrearNota", publicaciones, .raiz_crm, refrescar_gestion)
   observeEvent(input$control_contacto, abrir_accion("contacto"))
   observeEvent(input$control_oportunidad, abrir_accion("oportunidad"))
   observeEvent(input$control_muestra, abrir_accion("muestra"))

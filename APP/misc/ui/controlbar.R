@@ -5,12 +5,7 @@ controlbar <- bs4DashControlbar(
   controlbarMenu(
     id = "controlbarMenu", type = "tabs",
     controlbarItem("Filtros", FiltrosUI("Filtros")),
-    controlbarItem(
-      "Tareas y notas",
-      div(class = "crm-control",
-          .boton("control_tarea", .acciones$tarea$titulo, "plus"),
-          .boton("control_gestion", .acciones$gestion$titulo, "plus"))
-    ),
+    controlbarItem("Tareas y notas", CrearNotasUI("CrearNota")),
     controlbarItem(
       "Contactos",
       div(class = "crm-control", .boton("control_contacto", .acciones$contacto$titulo, "plus"))
