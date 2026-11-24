@@ -30,6 +30,11 @@
       actualizada = instante), list(ref("oportunidades", "oportunidad_id"), ref("muestras", "muestra_id"))),
     tarea_prioridad = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, prioridad = ch),
       list(ref("tareas", "tarea_id"))),
+    tarea_etiquetas = contrato(c("tarea_id", "etiqueta"),
+      data.frame(tarea_id = ch, PerCod = ch, etiqueta = ch), list(ref("tareas", "tarea_id"))),
+    tarea_actividades = contrato(c("tarea_id", "orden"),
+      data.frame(tarea_id = ch, PerCod = ch, orden = integer(), actividad = ch, cumplida = logical()),
+      list(ref("tareas", "tarea_id"))),
     contactos = contrato("contacto_id", data.frame(contacto_id = ch, PerCod = ch, nombre = ch,
       correo = ch, telefono = ch, preferencia_calidad = ch))
   )
@@ -183,6 +188,19 @@
       prioridad <- .gestion_dominio(prioridad, c("ALTA", "MEDIA", "BAJA"))
       t$tarea_prioridad <- .gestion_upsert(t$tarea_prioridad,
                                           data.frame(tarea_id = id, PerCod = cliente, prioridad = prioridad), "tarea_id")
+      etiquetas <- unique(trimws(as.character(campos$etiquetas)))
+      etiquetas <- etiquetas[!is.na(etiquetas) & nzchar(etiquetas)]
+      if (length(etiquetas)) {
+        t$tarea_etiquetas <- rbind(t$tarea_etiquetas,
+                                  data.frame(tarea_id = id, PerCod = cliente, etiqueta = etiquetas))
+      }
+      actividades <- unique(trimws(as.character(campos$actividades)))
+      actividades <- actividades[!is.na(actividades) & nzchar(actividades)]
+      if (length(actividades)) {
+        t$tarea_actividades <- rbind(t$tarea_actividades,
+          data.frame(tarea_id = id, PerCod = cliente, orden = seq_along(actividades), actividad = actividades,
+                     cumplida = actividades %in% campos$actividades_cumplidas))
+      }
     }
     t[[tabla]] <- .gestion_upsert(t[[tabla]], fila, llave)
     t

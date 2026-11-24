@@ -84,12 +84,23 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       output$kanban <- renderUI({
         d <- .etiquetar_clientes(datos(), operativo()$clientes)
         if (!nrow(d)) return(NULL)
+        tablas <- publicaciones()$crm$tablas
+        etiquetas <- .gestion_filas(tablas, "tarea_etiquetas")
+        actividades <- .gestion_filas(tablas, "tarea_actividades")
         prioridades <- names(.colores_prioridad_crm)
         columnas <- lapply(prioridades, function(prioridad) {
           filas <- d[which(d$prioridad == prioridad), , drop = FALSE]
           tarjetas <- lapply(seq_len(nrow(filas)), function(i) {
+            id_tarea <- filas$tarea_id[i]
+            marcas <- etiquetas$etiqueta[etiquetas$tarea_id == id_tarea]
+            lista <- actividades[which(actividades$tarea_id == id_tarea), , drop = FALSE]
+            lista <- lista[order(lista$orden), , drop = FALSE]
             cuerpo <- div(class = "crm-panel", tags$p(filas$PerCod[i]), tags$p(filas$resultado[i]),
-                           tags$p(as.character(filas$seguimiento[i])))
+                          tags$p(.formato_fecha_crm(filas$seguimiento[i])),
+                          lapply(marcas, function(etiqueta) tags$span(class = "badge badge-secondary mr-1", etiqueta)),
+                          if (nrow(lista)) tags$ul(lapply(seq_len(nrow(lista)), function(j) {
+                            tags$li(if (lista$cumplida[j]) tags$del(lista$actividad[j]) else lista$actividad[j])
+                          })))
             if (.disponible_api("racafeModulos", "TarjetaKanbanUI")) {
               return(racafeModulos::TarjetaKanbanUI(filas$asunto[i], cuerpo = cuerpo))
             }
