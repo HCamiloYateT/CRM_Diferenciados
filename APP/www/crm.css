@@ -6,10 +6,10 @@
 }
 .crm-header-identidad { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
 .crm-identidad {
-  display: inline-flex; align-items: baseline; gap: .25rem; padding: 0; border: 0;
+  display: inline-flex; align-items: center; gap: .25rem; padding: 0; border: 0;
   background: transparent; color: #686e73; font-size: .68rem; font-weight: 600; white-space: nowrap;
 }
-.crm-identidad small { font-size: .6rem; }
+.crm-identidad .badge { font-size: inherit; }
 .crm-header-identidad :is(#actualizar, #descarga_clientes, #glosario, #escalas_color) {
   display: inline-flex; align-items: center; justify-content: center; min-width: 27px;
   min-height: 22px; padding: 2px 6px; border: 0; border-radius: 50rem;
