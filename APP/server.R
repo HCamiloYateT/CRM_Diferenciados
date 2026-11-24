@@ -1,6 +1,7 @@
-# Estado de sesión, publicación y filtros compartidos ----
+# Servidor ----
 
-function(input, output, session) {
+server <- function(input, output, session) {
+  # Datos reactivos ----
   publicaciones <- reactiveVal(list(operacional = NULL, crm = NULL))
   cargando <- reactiveVal(FALSE)
   refrescar <- function() {
@@ -20,10 +21,27 @@ function(input, output, session) {
   filtros <- reactive(list(
     periodo = if (isTRUE(input$usar_periodo) && length(input$periodo) == 2L && !anyNA(input$periodo)) input$periodo,
     pais = input$filtro_pais, destino = input$filtro_destino,
-    creador = input$filtro_creador, cliente = input$filtro_cliente, percod = trimws(input$percod %||% ""), estado = input$filtro_estado
+    creador = input$filtro_creador, cliente = input$filtro_cliente,
+    percod = trimws(input$percod %||% ""), estado = input$filtro_estado
   ))
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
+  identidad <- toupper(session$user %||% "HCYATE")
+  grupos <- paste(toupper(session$groups %||% "ANALÍTICA"), collapse = ", ")
+
+  refrescar_gestion <- function() {
+    actualizado <- isolate(publicaciones())
+    actualizado$crm <- LeerPublicacionRDS(.raiz_crm, "crm")
+    publicaciones(actualizado)
+  }
+  capturar <- .GestionCapturaServer(publicaciones, .raiz_crm, refrescar_gestion)
+  abrir_accion <- function(id, cliente = NULL) {
+    tipo <- if (id %in% c("gestion", "tarea")) "tarea" else id
+    capturar(tipo, cliente = cliente)
+  }
+
+  # Outputs ----
+  ## Controlbar ----
   output$opciones_filtros <- renderUI({
     clientes <- .tabla_fuente(publicaciones(), "clientes")
     pedidos <- .tabla_fuente(publicaciones(), "pedidos")
@@ -52,32 +70,75 @@ function(input, output, session) {
     }
   })
 
-  refrescar_gestion <- function() {
-    actualizado <- isolate(publicaciones())
-    actualizado$crm <- LeerPublicacionRDS(.raiz_crm, "crm")
-    publicaciones(actualizado)
-  }
-  capturar <- .GestionCapturaServer(publicaciones, .raiz_crm, refrescar_gestion)
-  abrir_accion <- function(id, cliente = NULL) {
-    tipo <- if (id %in% c("gestion", "tarea")) "tarea" else id
-    capturar(tipo, cliente = cliente)
-  }
   for (id in names(.acciones)) local({
     accion <- id
     observeEvent(input[[paste0("control_", accion)]], abrir_accion(accion))
   })
-  .EncabezadoServer(input, output, session, publicaciones, operativo, cargando, refrescar)
 
+  ## Header ----
+  observeEvent(input$actualizar, refrescar())
+
+  output$estado_corte <- renderUI({
+    if (cargando()) return(tags$span("Cargando publicación…"))
+    publicacion <- publicaciones()$operacional
+    corte <- publicacion$manifiesto$procedencia$corte
+    texto <- if (inherits(publicacion, "error")) "No se pudo leer la publicación" else if (length(corte)) {
+      paste("Corte operacional", format(as.Date(corte), "%d/%m/%Y"))
+    } else "Sin publicación operacional"
+    tags$p(texto)
+  })
+
+  output$descarga_clientes <- downloadHandler(
+    filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".xlsx"),
+    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    content = function(ruta) {
+      clientes <- .clientes_vista(operativo()$clientes, operativo()$pedidos,
+                                 .margenes_filtrados(publicaciones(), operativo()$pedidos))
+      if (is.null(clientes)) {
+        clientes <- .clientes_vista(data.frame(PerCod = character(), PerRazSoc = character()))
+      }
+      writexl::write_xlsx(list(Clientes = clientes), path = ruta)
+    }
+  )
+
+  output$identidad_header <- renderUI({
+    contenido <- tagList(tags$span(identidad), tags$small(paste("·", grupos)))
+    tags$button(id = "usuario", type = "button", class = "action-button crm-identidad",
+                title = "Información de sesión", contenido)
+  })
+  observeEvent(input$usuario, {
+    showModal(modalDialog(title = "Usuario y grupos", tags$p(identidad), tags$p(grupos), uiOutput("estado_corte"),
+                          footer = modalButton("Cerrar")))
+  })
+
+  observeEvent(input$glosario, showModal(.GlosarioDiferenciadosUI()))
+
+  ### Indicadores, notas y tareas ----
+  vigentes <- .IndicadoresHeaderServer(input, session)
+  .NotasTareasHeaderServer(input, session, publicaciones)
+
+  ## Body ----
+  navegar <- function(tab) updatebs4TabItems(session, "navegacion", selected = tab)
+
+  ### Generalidades ----
+  VistaServer("resumen", .vistas$resumen, publicaciones, operativo, filtros, abrir_accion, cargando, navegar)
+  ComparacionIndicadores("comparacion_indicadores",
+                         reactive(identical(input$navegacion, "comparacion_indicadores")), vigentes)
+
+  ### Gestión comercial ----
   .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
+  for (id in names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar)
+
+  ### Productos ----
   ProductosServer("analisis_productos", publicaciones, filtros, .raiz_crm, function() {
     refrescar_gestion()
     updatebs4TabItems(session, "navegacion", selected = "oportunidades")
   })
 
-  for (id in names(.vistas)) {
-    if (id %in% names(.operacion_vistas)) OperacionServer(id, publicaciones, operativo, filtros) else
-      if (id %in% names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar) else
-      VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando,
-                 function(tab) updatebs4TabItems(session, "navegacion", selected = tab))
+  ### Operación y consultas ----
+  for (id in names(.operacion_vistas)) OperacionServer(id, publicaciones, operativo, filtros)
+  consultas <- setdiff(names(.vistas), c("resumen", names(.operacion_vistas), names(.gestion_vistas)))
+  for (id in consultas) {
+    VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando, navegar)
   }
 }
