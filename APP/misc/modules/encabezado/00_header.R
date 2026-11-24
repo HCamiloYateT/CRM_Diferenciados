@@ -26,16 +26,14 @@
     }
   )
 
+  identidad <- toupper(session$user %||% "HCYATE")
+  grupos <- paste(toupper(session$groups %||% "ANALÍTICA"), collapse = ", ")
   output$identidad_header <- renderUI({
-    identidad <- toupper(session$user %||% "Usuario")
-    grupos <- paste(toupper(session$groups %||% "Sin grupos"), collapse = ", ")
     contenido <- tagList(tags$span(identidad), tags$small(paste("·", grupos)))
     tags$button(id = "usuario", type = "button", class = "action-button crm-identidad", title = "Información de sesión",
                 contenido)
   })
   observeEvent(input$usuario, {
-    identidad <- session$user %||% "Sesión sin identidad institucional"
-    grupos <- paste(session$groups %||% "Sin grupos", collapse = ", ")
     showModal(modalDialog(title = "Usuario y grupos", tags$p(identidad), tags$p(grupos), uiOutput("estado_corte"),
                           footer = modalButton("Cerrar")))
   })
