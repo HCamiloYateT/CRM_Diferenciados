@@ -21,7 +21,7 @@ header <- bs4DashNavbar(
       } else downloadButton("descarga_clientes", NULL, icon = icon("users"), class = "btn-sm btn-secondary"),
       title = "Descargar clientes", `aria-label` = "Descargar clientes"
     ),
-    .boton_header("glosario", "Glosario comercial", "book-open"),
+    .GlosarioHeaderUI(),
     div(class = "dropdown",
         shiny::tagAppendAttributes(
           if (.disponible_api("racafeForms", "racafeButton")) {

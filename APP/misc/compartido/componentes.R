@@ -42,12 +42,22 @@
   format(x, "%d/%m/%Y")
 }
 
+.formato_moneda_crm <- function(x) {
+  vapply(x, function(valor) {
+    if (is.na(valor)) return(NA_character_)
+    paste0("$", format(valor, big.mark = ".", decimal.mark = ",", trim = TRUE, scientific = FALSE, digits = 10L))
+  }, character(1), USE.NAMES = FALSE)
+}
+
 .tabla_server <- function(id, datos, output) {
   presentacion <- reactive({
     tabla <- datos()
     if (is.null(tabla)) return(NULL)
     for (campo in names(tabla)) {
       x <- tabla[[campo]]
+      monetario <- campo %in% c("valor", "MNFCC", "MNFCC_COP", "PptoMNFCC", "DiferenciaMNFCC",
+                                "MargenCOP", "PptoMargenUScentLb", "diferencial_venta", "fcc")
+      if (monetario && is.numeric(x)) tabla[[campo]] <- .formato_moneda_crm(x)
       if (inherits(x, c("Date", "POSIXt"))) tabla[[campo]] <- .formato_fecha_crm(x)
       if (campo %in% c("Mes", "Cohorte", "mes", "cohorte", "periodo", "periodo_cabecera")) {
         tabla[[campo]] <- .formato_fecha_crm(tabla[[campo]], mes = TRUE)

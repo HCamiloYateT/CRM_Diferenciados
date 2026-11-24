@@ -218,7 +218,7 @@
     if (!is.finite(valores[i])) return("—")
     texto <- formatC(valores[i], digits = .IND_DECIMALES[[claves[i]]], format = "f",
                      big.mark = ",", decimal.mark = ".")
-    paste(texto, .IND_UNIDADES[[claves[i]]])
+    paste(paste0("$", texto), .IND_UNIDADES[[claves[i]]])
   }, character(1))
 }
 

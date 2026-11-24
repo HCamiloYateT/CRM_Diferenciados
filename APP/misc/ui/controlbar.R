@@ -8,21 +8,23 @@ controlbar <- bs4DashControlbar(
       "Filtros",
       racafeForms::racafeForm(
         racafeForms::racafeFormGroup(
-          racafeForms::racafeInputSwitch("usar_periodo", "Limitar por fecha de creación"),
-          conditionalPanel("input.usar_periodo",
-                           racafeForms::racafeInputDateRange("periodo", "Fecha de creación del pedido")),
-          uiOutput("opciones_filtros")
+          racafeForms::racafeInputDateRange("periodo", "Fecha de creación del pedido"),
+          racafeForms::racafeInputSwitch("creacion_todas", "Todas", value = TRUE)
         ),
         racafeForms::racafeFormGroup(
+          uiOutput("rango_embarque"),
+          racafeForms::racafeInputSwitch("embarque_todos", "Todos", value = TRUE)
+        ),
+        racafeForms::racafeFormGroup(
+          uiOutput("creador_pedido"),
           racafeForms::racafeFormRow(
-            racafeForms::racafeInputSelect("filtro_asesor", "Asesor", c("Pendiente" = ""), disabled = TRUE),
-            racafeForms::racafeInputSelect("filtro_segmento", "Segmento", c("Pendiente" = ""), disabled = TRUE)
+            racafeForms::racafeInputSelect("filtro_segmento", "Segmento", c("Pendiente" = ""), disabled = TRUE),
+            racafeForms::racafeInputSelect("filtro_categoria", "Categoría", c("Pendiente" = ""), disabled = TRUE),
+            responsive = "fixed"
           ),
-          .selector_clientes("filtro_cliente", "Cliente", multiple = TRUE, placeholder = "Todos"),
-          racafeForms::racafeInputText("percod", "PerCod exacto")
+          racafeForms::racafeInputSelect("filtro_producto", "Producto", c("Pendiente" = ""), disabled = TRUE)
         ),
         racafeForms::racafeFormFooter(
-          .boton("limpiar", "Restablecer", "eraser"),
           racafeForms::racafeButton("aplicar_filtros", "Aplicar filtros", icon = "check", variant = "primary")
         ),
         size = "compact", variant = "plain"

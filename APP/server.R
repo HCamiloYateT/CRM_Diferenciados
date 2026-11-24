@@ -19,12 +19,22 @@ server <- function(input, output, session) {
   filtros <- reactiveVal(list(percod = ""))
   observeEvent(input$aplicar_filtros, {
     periodo <- input$periodo
-    if (isTRUE(input$usar_periodo) && (length(periodo) != 2L || anyNA(periodo) || periodo[1L] > periodo[2L])) {
+    limitar_creacion <- identical(input$creacion_todas, FALSE)
+    if (limitar_creacion && (length(periodo) != 2L || anyNA(periodo) || periodo[1L] > periodo[2L])) {
       return(showNotification("Seleccione un intervalo válido de creación.", type = "warning"))
     }
-    filtros(list(periodo = if (isTRUE(input$usar_periodo)) periodo,
-                 embarque = input$filtro_embarque, creador = input$filtro_creador,
-                 cliente = input$filtro_cliente, percod = trimws(input$percod %||% "")))
+    embarque <- NULL
+    if (identical(input$embarque_todos, FALSE)) {
+      meses <- c(input$embarque_desde, input$embarque_hasta)
+      if (length(meses) != 2L || anyNA(meses) ||
+          any(!grepl("^[1-9][0-9]{3}-(0[1-9]|1[0-2])$", meses)) || meses[1L] > meses[2L]) {
+        return(showNotification("Seleccione un rango válido de meses de embarque.", type = "warning"))
+      }
+      limites <- as.Date(paste0(meses, "-01"))
+      embarque <- format(seq(limites[1L], limites[2L], by = "month"), "%Y-%m")
+    }
+    filtros(list(periodo = if (limitar_creacion) periodo, embarque = embarque,
+                 creador = input$filtro_creador, percod = ""))
   })
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
@@ -47,33 +57,30 @@ server <- function(input, output, session) {
 
   # Outputs ----
   ## Controlbar ----
-  output$opciones_filtros <- renderUI({
+  output$rango_embarque <- renderUI({
     pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-    meses <- sort(unique(na.omit(as.character(pedidos$periodo_cabecera))), decreasing = TRUE)
-    creadores <- sort(unique(na.omit(as.character(pedidos$PdcUsu))))
-    creadores <- creadores[nzchar(creadores)]
-    opciones <- function(id, etiqueta, valores) {
-      seleccion <- isolate(input[[id]])
-      racafeForms::racafeInputSelect(id, etiqueta, valores, selected = intersect(seleccion, valores),
-                                    multiple = TRUE, empty_label = "Todos")
-    }
+    meses <- sort(unique(na.omit(as.character(pedidos$periodo_cabecera))))
+    opciones <- setNames(meses, .formato_fecha_crm(meses, mes = TRUE))
+    desde <- intersect(isolate(input$embarque_desde), meses)
+    hasta <- intersect(isolate(input$embarque_hasta), meses)
     racafeForms::racafeFormRow(
-      opciones("filtro_embarque", "Mes de embarque", setNames(meses, .formato_fecha_crm(meses, mes = TRUE))),
-      opciones("filtro_creador", "Usuario de creación del pedido", creadores)
+      racafeForms::racafeInputSelect("embarque_desde", "Embarque desde", opciones,
+                                    selected = head(c(desde, meses), 1L), empty = FALSE),
+      racafeForms::racafeInputSelect("embarque_hasta", "Embarque hasta", opciones,
+                                    selected = head(c(hasta, rev(meses)), 1L), empty = FALSE),
+      responsive = "fixed"
     )
   })
-  observeEvent(publicaciones(), {
-    clientes <- .tabla_fuente(publicaciones(), "clientes")
-    .actualizar_selector_clientes(session, "filtro_cliente", clientes, input$filtro_cliente)
-  })
-  observeEvent(input$limpiar, {
-    filtros(list(percod = ""))
-    shinyWidgets::updateMaterialSwitch(session, "usar_periodo", value = FALSE)
-    updateTextInput(session, "percod", value = "")
-    for (id in c("filtro_embarque", "filtro_creador")) {
-      shinyWidgets::updatePickerInput(session, id, selected = character())
-    }
-    updateSelectizeInput(session, "filtro_cliente", selected = character())
+  output$creador_pedido <- renderUI({
+    pedidos <- .tabla_fuente(publicaciones(), "pedidos")
+    creadores <- sort(unique(na.omit(as.character(pedidos$PdcUsu))))
+    creadores <- creadores[nzchar(creadores)]
+    racafeForms::racafeFormRow(
+      racafeForms::racafeInputSelect("filtro_creador", "Usuario de creación", creadores, multiple = TRUE,
+                                    selected = intersect(isolate(input$filtro_creador), creadores), empty_label = "Todos"),
+      racafeForms::racafeInputSelect("filtro_asesor", "Asesor", c("Pendiente" = ""), disabled = TRUE),
+      responsive = "fixed"
+    )
   })
 
   observeEvent(input$control_tarea, abrir_accion("tarea"))
@@ -84,16 +91,6 @@ server <- function(input, output, session) {
 
   ## Header ----
   observeEvent(input$actualizar, refrescar())
-
-  output$estado_corte <- renderUI({
-    if (cargando()) return(tags$span("Cargando publicación…"))
-    publicacion <- publicaciones()$operacional
-    corte <- publicacion$manifiesto$procedencia$corte
-    texto <- if (inherits(publicacion, "error")) "No se pudo leer la publicación" else if (length(corte)) {
-      paste("Corte operacional", .formato_fecha_crm(as.Date(corte)))
-    } else "Sin publicación operacional"
-    tags$p(texto)
-  })
 
   output$descarga_clientes <- downloadHandler(
     filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".xlsx"),
@@ -109,19 +106,11 @@ server <- function(input, output, session) {
   )
 
   output$identidad_header <- renderUI({
-    tags$button(id = "usuario", type = "button", class = "action-button crm-identidad",
-                title = "Información de sesión",
-                tags$span(class = "badge badge-secondary", identidad),
-                if (length(grupos)) tags$span(`aria-hidden` = "true", "|"),
-                lapply(grupos, function(grupo) tags$span(class = "badge badge-light text-dark", grupo)))
+    tags$span(class = "crm-identidad",
+              tags$span(class = "badge badge-secondary", identidad),
+              if (length(grupos)) tags$span(`aria-hidden` = "true", "|"),
+              lapply(grupos, function(grupo) tags$span(class = "badge badge-light text-dark", grupo)))
   })
-  observeEvent(input$usuario, {
-    showModal(modalDialog(title = "Usuario y grupos", tags$p(identidad),
-                          tags$p(paste(grupos, collapse = ", ")), uiOutput("estado_corte"),
-                          footer = modalButton("Cerrar")))
-  })
-
-  observeEvent(input$glosario, showModal(.GlosarioDiferenciadosUI()))
 
   ### Indicadores, notas y tareas ----
   vigentes <- .IndicadoresHeaderServer(input, session)

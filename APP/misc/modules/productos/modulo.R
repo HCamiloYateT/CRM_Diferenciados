@@ -329,6 +329,8 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
         valor <- valores_kpi()[posicion]
         if (.prod_kpis[posicion] == "Concentración top" && is.finite(valor)) {
           paste0(.formato_cantidad(100 * valor), "%")
+        } else if (.prod_kpis[posicion] == "MNFCC COP/kg" && is.finite(valor)) {
+          .formato_moneda_crm(valor)
         } else .formato_cantidad(valor)
       }), output)
     })
