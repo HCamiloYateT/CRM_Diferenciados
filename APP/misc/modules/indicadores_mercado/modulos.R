@@ -23,6 +23,15 @@
   }
 }
 
+# La unidad conserva un estilo neutro incluso dentro de una celda con tendencia.
+.IndicadorCelda <- function(valor) {
+  separador <- regexpr(" [^ ]+/[^ ]+$", valor)
+  if (is.na(separador) || separador < 1L) return(htmltools::htmlEscape(valor))
+  as.character(shiny::tagList(substr(valor, 1L, separador - 1L), " ",
+                             shiny::tags$span(class = "crm-indicador-unidad",
+                                              substring(valor, separador + 1L))))
+}
+
 .TablaIndicadoresHTML <- function(datos, colores, encabezado = TRUE) {
   html <- shiny::tags
   shiny::div(class = "crm-tabla table-responsive",
@@ -31,7 +40,7 @@
                         html$tbody(lapply(seq_len(nrow(datos)), function(i) {
                           html$tr(lapply(seq_len(ncol(datos)), function(j) {
                             html$td(style = if (!is.na(colores[i, j])) paste0("color:", colores[i, j]),
-                                    datos[[j]][i])
+                                    if (j == 1L) datos[[j]][i] else shiny::HTML(.IndicadorCelda(datos[[j]][i])))
                           }))
                         }))))
 }
@@ -44,7 +53,9 @@
                                                         rows = which(colores[, j] == color)))
     }
   }
-  tabla
+  gt::text_transform(tabla, locations = gt::cells_body(columns = -1L), fn = function(x) {
+    vapply(x, .IndicadorCelda, character(1))
+  })
 }
 
 # Comparación histórica ----
@@ -70,7 +81,7 @@ ComparacionIndicadoresUI <- function(id) {
 .FormatoComparacionIndicadores <- function(datos) {
   porcentaje <- ifelse(is.finite(datos$Variacion_Porcentual),
                         paste0(formatC(100 * datos$Variacion_Porcentual, digits = 2, format = "f"), "%"), "—")
-  tabla <- data.frame("Indicador" = datos$Nombre_Indicador,
+  tabla <- data.frame("Indicador" = sub(" \\([^()]+/[^()]+\\)$", "", datos$Nombre_Indicador),
                       "Valor inicial" = .FormatearIndicadores(datos$Valor_Anterior, datos$Indicador),
                       "Valor final" = .FormatearIndicadores(datos$Valor_Actual, datos$Indicador),
                       "Diferencia" = .FormatearIndicadores(datos$Diferencia_Absoluta, datos$Indicador),
@@ -117,8 +128,8 @@ ComparacionIndicadores <- function(id, activo, vigentes) {
         return(.nota(mensaje, "error"))
       }
       if (is.null(valor)) return(NULL)
-      .nota(paste("Fecha inicial", format(valor$inicio, "%d/%m/%Y"), "· CRMINDICADORES.",
-                  "Fecha final", format(valor$fin, "%d/%m/%Y"), "·", paste0(valor$fuente, ".")))
+      .nota(paste("Fecha inicial", .formato_fecha_crm(valor$inicio), "· CRMINDICADORES.",
+                  "Fecha final", .formato_fecha_crm(valor$fin), "·", paste0(valor$fuente, ".")))
     })
     presentacion <- shiny::reactive({
       valor <- resultado()

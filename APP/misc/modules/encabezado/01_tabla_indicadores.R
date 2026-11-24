@@ -20,13 +20,13 @@ TablaIndicadores <- function(id, abierto, vigentes) {
     resultado <- shiny::reactiveVal(NULL)
     cargando <- shiny::reactiveVal(FALSE)
     .EstadoCargaIndicadores(session, output, cargando)
-    consultar <- function() {
+    consultar <- function(forzar = FALSE) {
       if (shiny::isolate(cargando())) return(invisible(NULL))
       cargando(TRUE)
       session$onFlushed(function() {
         on.exit(cargando(FALSE))
         resultado(tryCatch({
-          actuales <- vigentes(refrescar = TRUE)
+          actuales <- vigentes(refrescar = forzar)
           if (!any(is.finite(actuales$Valor))) stop("Sin indicadores vigentes disponibles.", call. = FALSE)
           anterior <- tryCatch(.CargarAnteriorIndicadores(), error = function(e) {
             message("Histórico de indicadores: ", conditionMessage(e))
@@ -40,15 +40,16 @@ TablaIndicadores <- function(id, abierto, vigentes) {
         }))
       }, once = TRUE)
     }
+    shiny::observeEvent(TRUE, consultar(), once = TRUE)
     shiny::observeEvent(abierto(), {
       if (is.null(resultado())) consultar()
     })
-    shiny::observeEvent(input$actualizar, consultar())
+    shiny::observeEvent(input$actualizar, consultar(forzar = TRUE))
     output$estado <- shiny::renderUI({
       valor <- resultado()
       if (inherits(valor, "error")) return(.nota("No fue posible consultar los indicadores vigentes.", "error"))
       if (is.null(valor)) return(NULL)
-      hora <- format(valor$hora, "%d/%m/%Y %H:%M", tz = "America/Bogota")
+      hora <- .formato_fecha_crm(valor$hora)
       .nota(paste("Consulta:", hora, if (valor$sin_historico) "· Sin referencia histórica del día anterior."))
     })
     presentacion <- shiny::reactive({

@@ -68,7 +68,7 @@ VistaUI <- function(id, vista) {
 }
 
 .sin_filtros_vista <- function(filtros) {
-  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado", "creador")])) && !nzchar(filtros$percod %||% "")
+  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado", "creador", "embarque")])) && !nzchar(filtros$percod %||% "")
 }
 
 VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_accion, cargando, navegar = function(id) NULL) {
@@ -122,7 +122,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       pub <- publicaciones()$operacional
       corte <- pub$manifiesto$procedencia$corte
       if (id %in% c("resumen", "pedidos") && length(corte)) {
-        fecha <- format(as.Date(corte), "%d/%m/%Y")
+        fecha <- .formato_fecha_crm(as.Date(corte))
         return(.nota(paste("Corte", fecha, "·", vista$nota %||% "Pedidos de línea 20000.")))
       }
       if (!is.null(vista$nota)) .nota(vista$nota)
@@ -162,6 +162,8 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         output$grafico <- plotly::renderPlotly({
           dat <- serie()
           validate(need(!is.null(dat) && nrow(dat), "Serie no disponible para esta selección."))
+          dat$etiqueta <- factor(.formato_fecha_crm(dat$etiqueta, mes = TRUE),
+                                 levels = .formato_fecha_crm(unique(dat$etiqueta), mes = TRUE))
           p <- plotly::plot_ly(dat, x = ~etiqueta, y = ~total, color = ~grupo, type = "bar",
                                colors = c("#B8261C", "#37545A", "#7C5E38", "#505A77"),
                                hovertemplate = "%{x}<br>%{y}<extra>%{fullData.name}</extra>")
@@ -177,6 +179,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
           dat <- serie()
           validate(need(!is.null(dat) && nrow(dat), "Serie no disponible para esta selección."))
           matriz <- stats::xtabs(total ~ grupo + etiqueta, dat)
+          colnames(matriz) <- .formato_fecha_crm(colnames(matriz), mes = TRUE)
           par(mar = c(7, 4, 1, 1))
           barplot(matriz, las = 2, col = c("#B8261C", "#37545A", "#7C5E38", "#505A77"), beside = TRUE,
                   ylab = "Cantidad", legend.text = nrow(matriz) > 1L, cex.names = 0.75)

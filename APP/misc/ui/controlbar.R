@@ -6,18 +6,27 @@ controlbar <- bs4DashControlbar(
     id = "controlbarMenu", type = "tabs",
     controlbarItem(
       "Filtros",
-      div(class = "crm-control",
-          checkboxInput("usar_periodo", "Limitar por fecha de creación"),
+      racafeForms::racafeForm(
+        racafeForms::racafeFormGroup(
+          racafeForms::racafeInputSwitch("usar_periodo", "Limitar por fecha de creación"),
           conditionalPanel("input.usar_periodo",
-                           dateRangeInput("periodo", NULL, format = "dd/mm/yyyy", language = "es")),
-          uiOutput("opciones_filtros"),
+                           racafeForms::racafeInputDateRange("periodo", "Fecha de creación del pedido")),
+          uiOutput("opciones_filtros")
+        ),
+        racafeForms::racafeFormGroup(
+          racafeForms::racafeFormRow(
+            racafeForms::racafeInputSelect("filtro_asesor", "Asesor", c("Pendiente" = ""), disabled = TRUE),
+            racafeForms::racafeInputSelect("filtro_segmento", "Segmento", c("Pendiente" = ""), disabled = TRUE)
+          ),
           .selector_clientes("filtro_cliente", "Cliente", multiple = TRUE, placeholder = "Todos"),
-          textInput("percod", "PerCod exacto"),
-          .boton("limpiar", "Restablecer filtros", "eraser"),
-          tags$details(tags$summary("Filtros pendientes"),
-                       tags$ul(tags$li("Comercial"), tags$li("Etapa comercial"), tags$li("Tipo de comprador"),
-                               tags$li("Estado de muestra"), tags$li("Tipo de oportunidad"), tags$li("Tier"),
-                               tags$li("Categoría y producto homologado"))))
+          racafeForms::racafeInputText("percod", "PerCod exacto")
+        ),
+        racafeForms::racafeFormFooter(
+          .boton("limpiar", "Restablecer", "eraser"),
+          racafeForms::racafeButton("aplicar_filtros", "Aplicar filtros", icon = "check", variant = "primary")
+        ),
+        size = "compact", variant = "plain"
+      )
     ),
     controlbarItem(
       "Tareas y notas",

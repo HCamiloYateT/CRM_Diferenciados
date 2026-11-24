@@ -123,6 +123,11 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       clientes <- publicaciones()$operacional$tablas$clientes
       d$pais_empresa <- clientes$codigo_pais[match(d$PerCod, clientes$PerCod)]
       if (length(filtros()$pais)) d <- d[d$pais_empresa %in% filtros()$pais, , drop = FALSE]
+      if (length(filtros()$embarque)) {
+        pedidos <- publicaciones()$operacional$tablas$pedidos
+        ids <- pedidos$pedido_id[pedidos$periodo_cabecera %in% filtros()$embarque]
+        d <- d[d$pedido_id %in% ids, , drop = FALSE]
+      }
       global <- filtros()$periodo
       if (length(global) == 2L) d <- d[which(d$fecha >= global[1L] & d$fecha <= global[2L]), , drop = FALSE]
       if (length(input$comercial)) d <- d[d$comercial %in% input$comercial, , drop = FALSE]
@@ -244,7 +249,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
         resultado$items$Nombre <- mapa$nombre[match(resultado$items$Item, mapa$item)]
         resultado$periodo <- periodo()
         resultado$dimension <- input$dimension
-        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador")]
+        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque")]
         resultado$comercial <- input$comercial
         resultado$parametros <- c(input$cesta, input$soporte, input$minimo, input$longitud,
                                   input$confianza, input$lift, input$temporal, input$estadistica)
@@ -257,7 +262,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       if (inherits(a, "error")) return(a)
       if (!identical(a$dimension, input$dimension) || !identical(a$periodo, periodo()) ||
           !identical(a$generacion, publicaciones()$operacional$manifiesto$id) ||
-          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador")]) ||
+          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque")]) ||
           !identical(a$comercial, input$comercial) ||
           !identical(a$parametros, c(input$cesta, input$soporte, input$minimo, input$longitud,
                                     input$confianza, input$lift, input$temporal, input$estadistica))) {
