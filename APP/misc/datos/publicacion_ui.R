@@ -50,7 +50,7 @@
     data.frame(Fuente = nombre, Dominio = fuente$dominio, Archivo = paste0(nombre, ".rds"),
                Esquema = paste(fuente$campos, collapse = ", "), Clave = paste(fuente$clave, collapse = " + "),
                Estado = .estado_fuente(publicaciones, nombre),
-               Corte = if (length(corte)) as.character(corte) else "—",
+               Corte = if (length(corte)) .formato_fecha_crm(as.Date(corte)) else "—",
                Versión = if (length(version) && !is.na(version)) unname(version) else "—",
                Calidad = if (is.data.frame(calidad)) paste(nrow(calidad), "incidencias del corte") else "—",
                Vistas = paste(consumidores, collapse = ", "))
@@ -68,13 +68,14 @@
     if (nzchar(filtros$percod)) clientes <- clientes[clientes$PerCod == filtros$percod, , drop = FALSE]
   }
   seleccion_pedido <- length(filtros$periodo) == 2L || length(filtros$estado) ||
-    length(filtros$destino) || length(filtros$creador)
+    length(filtros$destino) || length(filtros$creador) || length(filtros$embarque)
   if (!is.null(pedidos)) {
     if (!is.null(clientes)) pedidos <- pedidos[pedidos$PerCod %in% clientes$PerCod, , drop = FALSE]
     if (length(filtros$periodo) == 2L) {
       fechas <- pedidos$fecha_creacion
       pedidos <- pedidos[which(fechas >= filtros$periodo[1L] & fechas <= filtros$periodo[2L]), , drop = FALSE]
     }
+    if (length(filtros$embarque)) pedidos <- pedidos[pedidos$periodo_cabecera %in% filtros$embarque, , drop = FALSE]
     if (length(filtros$creador)) pedidos <- pedidos[pedidos$PdcUsu %in% filtros$creador, , drop = FALSE]
     if (length(filtros$estado)) pedidos <- pedidos[pedidos$estado_original %in% filtros$estado, , drop = FALSE]
     if (length(filtros$destino)) {

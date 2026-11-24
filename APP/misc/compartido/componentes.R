@@ -29,13 +29,38 @@
   div(class = "crm-tabla table-responsive", tableOutput(id))
 }
 
+# Fechas para presentación en Colombia ----
+
+.formato_fecha_crm <- function(x, mes = FALSE) {
+  if (mes) return(sub("^([0-9]{4})-([0-9]{2})$", "\\2/\\1", as.character(x)))
+  if (inherits(x, "POSIXt")) {
+    zona <- "America/Bogota"
+    fecha <- format(x, "%d/%m/%Y %I:%M", tz = zona)
+    sufijo <- ifelse(format(x, "%H", tz = zona) < "12", "a. m.", "p. m.")
+    return(ifelse(is.na(x), NA_character_, paste(fecha, sufijo)))
+  }
+  format(x, "%d/%m/%Y")
+}
+
 .tabla_server <- function(id, datos, output) {
   presentacion <- reactive({
     tabla <- datos()
     if (is.null(tabla)) return(NULL)
-    tabla[] <- lapply(tabla, function(columna) {
-      if (inherits(columna, "Date")) format(columna, "%d/%m/%Y") else columna
-    })
+    for (campo in names(tabla)) {
+      x <- tabla[[campo]]
+      if (inherits(x, c("Date", "POSIXt"))) tabla[[campo]] <- .formato_fecha_crm(x)
+      if (campo %in% c("Mes", "Cohorte", "mes", "cohorte", "periodo", "periodo_cabecera")) {
+        tabla[[campo]] <- .formato_fecha_crm(tabla[[campo]], mes = TRUE)
+      }
+      if (campo %in% c("fecha_creacion_original", "fecha_embarque_original")) {
+        hora <- grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}", x)
+        dia <- !hora & !is.na(.dp_fecha(x))
+        tabla[[campo]][dia] <- .formato_fecha_crm(.dp_fecha(x[dia]))
+        instante <- as.POSIXct(sub("T", " ", x[hora], fixed = TRUE), format = "%Y-%m-%d %H:%M",
+                               tz = "America/Bogota")
+        tabla[[campo]][hora] <- .formato_fecha_crm(instante)
+      }
+    }
     tabla
   })
   if (.disponible_api("racafeModulos", "TablaVancouverServer")) {

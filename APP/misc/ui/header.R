@@ -51,7 +51,6 @@ header <- bs4DashNavbar(
     } else {
       tags$li(class = "nav-item dropdown", .boton_header("abrir_indicadores", "Indicadores", "arrow-trend-up"))
     },
-    .SeguimientoHeaderUI("MenuNotas", .menus_seguimiento_header$MenuNotas),
-    .SeguimientoHeaderUI("MenuTareas", .menus_seguimiento_header$MenuTareas)
+    .SeguimientoHeaderUI()
   )
 )

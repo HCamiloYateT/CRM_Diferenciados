@@ -16,12 +16,16 @@ server <- function(input, output, session) {
       publicaciones(.leer_dominios(.raiz_crm))
     }, once = TRUE)
   }
-  filtros <- reactive(list(
-    periodo = if (isTRUE(input$usar_periodo) && length(input$periodo) == 2L && !anyNA(input$periodo)) input$periodo,
-    pais = input$filtro_pais, destino = input$filtro_destino,
-    creador = input$filtro_creador, cliente = input$filtro_cliente,
-    percod = trimws(input$percod %||% ""), estado = input$filtro_estado
-  ))
+  filtros <- reactiveVal(list(percod = ""))
+  observeEvent(input$aplicar_filtros, {
+    periodo <- input$periodo
+    if (isTRUE(input$usar_periodo) && (length(periodo) != 2L || anyNA(periodo) || periodo[1L] > periodo[2L])) {
+      return(showNotification("Seleccione un intervalo válido de creación.", type = "warning"))
+    }
+    filtros(list(periodo = if (isTRUE(input$usar_periodo)) periodo,
+                 embarque = input$filtro_embarque, creador = input$filtro_creador,
+                 cliente = input$filtro_cliente, percod = trimws(input$percod %||% "")))
+  })
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
   identidad <- toupper(session$user %||% "HCYATE")
@@ -44,31 +48,32 @@ server <- function(input, output, session) {
   # Outputs ----
   ## Controlbar ----
   output$opciones_filtros <- renderUI({
-    clientes <- .tabla_fuente(publicaciones(), "clientes")
     pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-    lineas <- .tabla_fuente(publicaciones(), "lineas_pedido")
+    meses <- sort(unique(na.omit(as.character(pedidos$periodo_cabecera))), decreasing = TRUE)
+    creadores <- sort(unique(na.omit(as.character(pedidos$PdcUsu))))
+    creadores <- creadores[nzchar(creadores)]
     opciones <- function(id, etiqueta, valores) {
-      valores <- valores[!is.na(valores) & nzchar(valores)]
-      if (!length(valores)) return(div(class = "crm-filtro-ausente", strong(etiqueta), " · Sin opciones"))
       seleccion <- isolate(input[[id]])
-      selectizeInput(id, etiqueta, choices = valores, selected = intersect(seleccion, valores),
-                     multiple = TRUE, options = list(placeholder = "Todos"))
+      racafeForms::racafeInputSelect(id, etiqueta, valores, selected = intersect(seleccion, valores),
+                                    multiple = TRUE, empty_label = "Todos")
     }
-    tagList(opciones("filtro_pais", "País de la empresa", sort(unique(clientes$codigo_pais))),
-            opciones("filtro_destino", "País de destino", sort(unique(lineas$PaiCodDtn))),
-            opciones("filtro_creador", "Usuario que creó el pedido", sort(unique(pedidos$PdcUsu))),
-            opciones("filtro_estado", "Estado de pedido", sort(unique(pedidos$estado_original))))
+    racafeForms::racafeFormRow(
+      opciones("filtro_embarque", "Mes de embarque", setNames(meses, .formato_fecha_crm(meses, mes = TRUE))),
+      opciones("filtro_creador", "Usuario de creación del pedido", creadores)
+    )
   })
   observeEvent(publicaciones(), {
     clientes <- .tabla_fuente(publicaciones(), "clientes")
     .actualizar_selector_clientes(session, "filtro_cliente", clientes, input$filtro_cliente)
   })
   observeEvent(input$limpiar, {
-    updateCheckboxInput(session, "usar_periodo", value = FALSE)
+    filtros(list(percod = ""))
+    shinyWidgets::updateMaterialSwitch(session, "usar_periodo", value = FALSE)
     updateTextInput(session, "percod", value = "")
-    for (id in c("filtro_pais", "filtro_destino", "filtro_cliente", "filtro_estado", "filtro_creador")) {
-      updateSelectizeInput(session, id, selected = character())
+    for (id in c("filtro_embarque", "filtro_creador")) {
+      shinyWidgets::updatePickerInput(session, id, selected = character())
     }
+    updateSelectizeInput(session, "filtro_cliente", selected = character())
   })
 
   observeEvent(input$control_tarea, abrir_accion("tarea"))
@@ -85,7 +90,7 @@ server <- function(input, output, session) {
     publicacion <- publicaciones()$operacional
     corte <- publicacion$manifiesto$procedencia$corte
     texto <- if (inherits(publicacion, "error")) "No se pudo leer la publicación" else if (length(corte)) {
-      paste("Corte operacional", format(as.Date(corte), "%d/%m/%Y"))
+      paste("Corte operacional", .formato_fecha_crm(as.Date(corte)))
     } else "Sin publicación operacional"
     tags$p(texto)
   })

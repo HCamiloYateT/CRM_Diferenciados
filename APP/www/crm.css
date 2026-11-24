@@ -9,7 +9,7 @@
   display: inline-flex; align-items: center; gap: .25rem; padding: 0; border: 0;
   background: transparent; color: #686e73; font-size: .68rem; font-weight: 600; white-space: nowrap;
 }
-.crm-identidad .badge { font-size: inherit; }
+.crm-identidad .badge { font-size: .8rem; padding: .35em .55em; }
 .crm-header-identidad :is(#actualizar, #descarga_clientes, #glosario, #escalas_color) {
   display: inline-flex; align-items: center; justify-content: center; min-width: 27px;
   min-height: 22px; padding: 2px 6px; border: 0; border-radius: 50rem;
@@ -64,3 +64,5 @@
 .crm-indicadores-filtros > .btn { margin-bottom: 1rem; }
 .crm-indicadores-filtros .shiny-input-container { width: min(14rem, 100%); }
 .crm-indicadores-carga .crm-tabla td:last-child { text-align: right; }
+
+.crm-indicador-unidad { color: #343a40; font-size: .8em; font-weight: normal; }
