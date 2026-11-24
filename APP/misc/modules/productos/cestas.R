@@ -109,8 +109,6 @@
 
 .prod_aceptar <- function(raiz, fila, usuario, motivo) {
   if (!.prod_autorizado(usuario)) stop("Su usuario no tiene permiso para aceptar recomendaciones.")
-  contrato <- .prod_contrato_oportunidad()
-  almacen <- AbrirPersistenciaRDS(raiz, list(crm = list(oportunidades = contrato)))
   id <- .prod_id(.prod_id(fila$PerCod, fila$dimension), fila$sugerido)
   nueva <- data.frame(oportunidad_id = id, PerCod = fila$PerCod, tipo = "CROSS_SELLING",
                       dimension = fila$dimension, item = fila$sugerido, antecedente = fila$compra,
@@ -119,8 +117,10 @@
                       desde = fila$desde, hasta = fila$hasta, calculado = fila$calculado,
                       lift_validacion = fila$lift_validacion, q_valor = fila$q_valor,
                       usuario, aceptada_en = Sys.time(), responsable = usuario, estado = "PENDIENTE")
-  ActualizarRDS(almacen, "oportunidades", "crm", function(tabla) {
+  .gestion_actualizar(raiz, function(tablas) {
+    tabla <- tablas$oportunidades
     if (id %in% tabla$oportunidad_id) stop("Ya existe una oportunidad para este cliente e ítem.")
-    rbind(tabla, nueva)
+    tablas$oportunidades <- rbind(tabla, nueva)
+    tablas
   }, usuario = usuario, motivo = motivo, referencia = id)
 }

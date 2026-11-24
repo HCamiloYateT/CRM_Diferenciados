@@ -9,7 +9,8 @@
   "Gestión comercial" = list(
     oportunidades = .vista("Oportunidades", "oportunidades",
       "Adquisición, cross-selling y up-selling. Las sugerencias requieren aceptación autorizada."),
-    actividades = .vista("Actividades", "gestiones"), tareas = .vista("Tareas y pendientes", "tareas"),
+    negociaciones = .vista("Negociaciones y ofertas", "ofertas"),
+    actividades = .vista("Actividades", "tareas"), tareas = .vista("Agenda y pendientes", "tareas"),
     notas = .vista("Notas y seguimiento", "notas")
   ),
   "Prospección" = list(
@@ -29,8 +30,7 @@
   "Muestras" = list(
     muestras = .vista("Directorio de muestras", "muestras"), solicitudes = .vista("Solicitudes", "muestras"),
     envios = .vista("Envíos de muestras", "remisiones"), evaluaciones = .vista("Evaluaciones", "evaluaciones"),
-    seguimiento = .vista("Seguimiento de muestras", "muestras"), indicadores = .vista("Indicadores de muestras",
-      "evaluaciones", "Circuito pendiente de validación con Comercial, Calidad y Logística.")
+    seguimiento = .vista("Aprobadas sin pedido", "muestras"), indicadores = .vista("Indicadores de muestras", "muestras")
   ),
   "Clientes" = list(
     directorio = .vista("Directorio comercial", "clientes_comerciales"),
@@ -100,6 +100,7 @@
   potencial = .fuente("operacional", "potencial_id"), cartera = .fuente("operacional", "obligacion_id"),
   empresas = .fuente("crm", "empresa_id"), contactos = .fuente("crm", "contacto_id"),
   descartados = .fuente("crm", "evento_id"), oportunidades = .fuente("crm", "oportunidad_id"),
+  ofertas = .fuente("crm", "oferta_id"), hechos_productos = .fuente("operacional", c("pedido_id", "PdcLin")),
   gestiones = .fuente("crm", "gestion_id"), tareas = .fuente("crm", "tarea_id"), notas = .fuente("crm", "nota_id"),
   muestras = .fuente("crm", "muestra_id"), remisiones = .fuente("crm", "remision_id"),
   evaluaciones = .fuente("crm", "evaluacion_id"), responsables = .fuente("crm", "actor_id"),
@@ -109,7 +110,9 @@
 
 .ficha <- c("Identificación" = "clientes_comerciales", "Contactos" = "contactos",
             "Historial comercial" = "primer_pedido_cliente", "Pedidos" = "pedidos", "Embarques" = "embarques",
-            "Muestras" = "muestras", "Oportunidades" = "oportunidades", "Actividades" = "gestiones",
+            "Productos" = "hechos_productos", "Volumen histórico" = "volumen_cliente",
+            "Muestras" = "muestras", "Oportunidades" = "oportunidades", "Ofertas" = "ofertas",
+            "Actividades" = "tareas",
             "Rentabilidad" = "margenes", "Presupuesto" = "presupuesto", "Potencial" = "potencial",
             "Cartera" = "cartera", "Notas" = "notas", "Tareas" = "tareas")
 

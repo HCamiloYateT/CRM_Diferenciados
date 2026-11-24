@@ -251,12 +251,24 @@ LeerRDS <- function(almacen, nombre, dominio) {
 }
 
 ActualizarCorteRDS <- function(almacen, dominio, funcion, usuario = NULL, motivo = NULL,
-                               referencia = NULL, procedencia = NULL) {
+                               referencia = NULL, procedencia = NULL, ampliar = FALSE) {
   ruta <- .rds_dominio(almacen, dominio)
   bloqueo <- .rds_bloquear(ruta)
   on.exit(unlink(bloqueo, recursive = TRUE))
   contratos <- almacen$contratos[[dominio]]
-  vigente <- .rds_vigente(ruta, contratos)
+  disponibles <- contratos
+  puntero <- file.path(ruta, "vigente.rds")
+  if (ampliar && file.exists(puntero)) {
+    id <- .rds_id_generacion(readRDS(puntero))
+    versiones <- .rds_verificar_archivos(file.path(ruta, id), id)$versiones
+    if (!all(names(versiones) %in% names(contratos))) stop("El corte CRM tiene tablas sin contrato.")
+    disponibles <- contratos[names(versiones)]
+  }
+  vigente <- .rds_vigente(ruta, disponibles)
+  if (ampliar) {
+    nuevos <- setdiff(names(contratos), names(vigente$tablas))
+    vigente$tablas[nuevos] <- lapply(contratos[nuevos], function(x) x$prototipo)
+  }
   tablas <- funcion(vigente$tablas)
   .rds_validar_corte(tablas, contratos)
   auditoria <- vigente$auditoria

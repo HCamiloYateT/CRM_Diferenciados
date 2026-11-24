@@ -17,14 +17,17 @@ VistaUI <- function(id, vista) {
             })),
             tags$small("Pendiente de vínculo con el registro, permisos y servicio validado de gestión."))
       },
-      if (id == "resumen") uiOutput(ns("resumen")),
+      if (id == "resumen") tagList(uiOutput(ns("gestion_resumen")), uiOutput(ns("resumen")),
+        div(class = "crm-panel", h2("Clientes con menor volumen pedido"),
+            .nota("Compara los últimos 90 días del corte con los 90 días anteriores, sin el filtro de período."),
+            uiOutput(ns("caidas_estado")), .tabla_ui(ns("caidas")))),
       if (id == "cohortes") shiny::div(class = "crm-indicadores-filtros",
         shiny::dateRangeInput(ns("periodo"), "Período de primera compra",
                               start = .HoyProductos() - 365, end = .HoyProductos(), format = "dd/mm/yyyy",
                               language = "es"), shiny::textOutput(ns("total_cohorte"))),
       if (id == "individual") .selector_clientes(ns("registro"), "Cliente"),
       if (id == "detalle") uiOutput(ns("seleccion")),
-      if (id == "individual") uiOutput(ns("ficha")),
+      if (id == "individual") tagList(uiOutput(ns("acciones_cliente")), uiOutput(ns("ficha"))),
       if (!is.null(vista$grafico)) uiOutput(ns("panel_grafico")),
       if (id == "kanban") uiOutput(ns("tablero")),
       if (id != "individual") div(class = "crm-panel", h2(if (id == "estado") "Registro de fuentes" else "Detalle"),
@@ -188,11 +191,33 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       observeEvent(operativo()$clientes, {
         .actualizar_selector_clientes(session, "registro", operativo()$clientes, input$registro)
       }, ignoreNULL = FALSE)
+      output$acciones_cliente <- renderUI({
+        req(nzchar(input$registro %||% ""))
+        div(class = "crm-controles-registro",
+            .boton(session$ns("seguimiento"), "Próxima acción", "calendar-check"),
+            .boton(session$ns("oportunidad"), "Oportunidad", "bullseye"),
+            .boton(session$ns("muestra"), "Muestra", "flask"))
+      })
+      observeEvent(input$seguimiento, abrir_accion("tarea", cliente = input$registro))
+      observeEvent(input$oportunidad, abrir_accion("oportunidad", cliente = input$registro))
+      observeEvent(input$muestra, abrir_accion("muestra", cliente = input$registro))
+      datos_ficha <- function(i) {
+        nombre <- unname(.ficha[i])
+        datos <- .vista_datos(publicaciones(), operativo(), nombre, filtros())
+        if (nombre == "oportunidades" && !is.null(datos)) {
+          datos <- .gestion_oportunidades(publicaciones()$crm$tablas)
+        }
+        if (nombre == "tareas" && !is.null(datos)) {
+          estado <- if (names(.ficha)[i] == "Actividades") "REALIZADA" else "PENDIENTE"
+          datos <- .gestion_agenda(datos[which(datos$estado == estado), , drop = FALSE])
+        }
+        datos
+      }
       output$ficha <- renderUI({
         if (!nzchar(input$registro %||% "")) return(NULL)
         do.call(tabsetPanel, lapply(seq_along(.ficha), function(i) {
           nombre <- unname(.ficha[i])
-          fuente <- .vista_datos(publicaciones(), operativo(), nombre, filtros())
+          fuente <- datos_ficha(i)
           estado <- .estado_fuente(publicaciones(), nombre)
           salida <- if (is.null(fuente)) {
             .nota(estado, "muted")
@@ -207,7 +232,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       for (i in seq_along(.ficha)) local({
         indice <- i
         .tabla_server(paste0("ficha_", indice), reactive({
-          fuente <- .vista_datos(publicaciones(), operativo(), unname(.ficha[indice]), filtros())
+          fuente <- datos_ficha(indice)
           if (is.null(fuente) || !"PerCod" %in% names(fuente)) return(NULL)
           filas <- fuente[which(fuente$PerCod == input$registro), , drop = FALSE]
           if (unname(.ficha[indice]) == "clientes_comerciales") .clientes_vista(filas) else filas
@@ -216,6 +241,42 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
     }
 
     if (id == "resumen") {
+      caidas <- reactive({
+        pub <- publicaciones()
+        corte <- pub$operacional$manifiesto$procedencia$corte
+        pedidos <- pub$operacional$tablas$pedidos
+        if (is.null(pedidos) || length(corte) != 1L ||
+            !any(pedidos$fecha_creacion <= as.Date(corte) - 179, na.rm = TRUE)) return(NULL)
+        seleccion <- filtros()
+        seleccion$periodo <- NULL
+        datos <- .filtrar_operacional(pub, seleccion)$pedidos
+        .gestion_caidas(datos, corte, cobertura = TRUE)
+      })
+      .tabla_server("caidas", caidas, output)
+      output$caidas_estado <- renderUI({
+        d <- caidas()
+        if (is.null(d)) return(.nota("Cobertura insuficiente para comparar los dos períodos.", "muted"))
+        if (!nrow(d)) .nota("Sin caídas verificables para los filtros activos.", "empty")
+      })
+      output$gestion_resumen <- renderUI({
+        tablas <- publicaciones()$crm$tablas
+        if (is.null(tablas)) return(.nota("Indicadores de gestión pendientes de registros."))
+        oportunidades <- .gestion_oportunidades(tablas)
+        tareas <- .gestion_agenda(.gestion_filas(tablas, "tareas"))
+        muestras <- .gestion_filas(tablas, "muestras")
+        clientes <- operativo()$clientes
+        filtrar <- function(d) if (is.null(clientes)) d else d[d$PerCod %in% clientes$PerCod, , drop = FALSE]
+        oportunidades <- filtrar(oportunidades)
+        tareas <- filtrar(tareas)
+        muestras <- filtrar(muestras)
+        valores <- c("Oportunidades abiertas" = sum(oportunidades$estado == "ABIERTA", na.rm = TRUE),
+                     "Acciones vencidas" = if (is.null(tablas$tareas)) NA_integer_ else sum(tareas$vencida),
+                     "Muestras aprobadas sin pedido" = if (is.null(tablas$muestras)) NA_integer_ else
+                       sum(muestras$estado == "APROBADA" & is.na(muestras$pedido_id)))
+        div(class = "crm-kpis", lapply(names(valores), function(etiqueta) {
+          div(class = "crm-kpi", span(etiqueta), strong(.formato_cantidad(valores[[etiqueta]])))
+        }))
+      })
       fuentes_kpi <- c("Empresas registradas" = "empresas", "Contactos" = "contactos",
                        "Prospectos" = "empresas", "Leads" = "empresas",
                        "Clientes históricos" = "clientes_comerciales", "Clientes nuevos" = "primer_pedido_cliente",

@@ -62,7 +62,16 @@ function(input, output, session) {
     tags$p(texto)
   })
 
-  abrir_accion <- function(id) showModal(.formulario_accion(id))
+  refrescar_gestion <- function() {
+    actualizado <- isolate(publicaciones())
+    actualizado$crm <- LeerPublicacionRDS(.raiz_crm, "crm")
+    publicaciones(actualizado)
+  }
+  capturar <- .GestionCapturaServer(publicaciones, .raiz_crm, refrescar_gestion)
+  abrir_accion <- function(id, cliente = NULL) {
+    tipo <- if (id %in% c("gestion", "tarea")) "tarea" else id
+    capturar(tipo, cliente = cliente)
+  }
   for (id in names(.acciones)) local({
     accion <- id
     observeEvent(input[[paste0("control_", accion)]], abrir_accion(accion))
@@ -146,11 +155,12 @@ function(input, output, session) {
 
   .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
   ProductosServer("analisis_productos", publicaciones, filtros, .raiz_crm, function() {
-    actualizado <- isolate(publicaciones())
-    actualizado$crm <- LeerPublicacionRDS(.raiz_crm, "crm")
-    publicaciones(actualizado)
+    refrescar_gestion()
     updatebs4TabItems(session, "navegacion", selected = "oportunidades")
   })
 
-  for (id in names(.vistas)) VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando)
+  for (id in names(.vistas)) {
+    if (id %in% names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar) else
+      VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando)
+  }
 }

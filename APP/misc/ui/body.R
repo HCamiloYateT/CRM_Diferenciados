@@ -23,7 +23,9 @@
 
 .body_crm <- function() {
   tabs <- lapply(names(.vistas), function(id) {
-    bs4TabItem(tabName = id, VistaUI(id, .vistas[[id]]))
+    vista <- .vistas[[id]]
+    contenido <- if (id %in% names(.gestion_vistas)) GestionUI(id, vista$titulo) else VistaUI(id, vista)
+    bs4TabItem(tabName = id, contenido)
   })
   tabs <- c(tabs, list(bs4TabItem(tabName = "comparacion_indicadores",
                                  ComparacionIndicadoresUI("comparacion_indicadores"))))
