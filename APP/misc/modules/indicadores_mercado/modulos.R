@@ -73,8 +73,10 @@ ComparacionIndicadoresUI <- function(id) {
   } else shiny::uiOutput(ns("tabla"))
   shiny::div(class = "crm-vista", shiny::h1("Comparación de Indicadores"),
              shiny::div(class = "crm-indicadores-filtros", fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1),
-                        fecha("fecha_actual", "Fecha final", .HoyIndicadores()),
-                        .boton(ns("actualizar"), "Actualizar", "rotate")),
+                        fecha("fecha_actual", "Fecha final", .HoyIndicadores())),
+             racafeForms::racafeFormFooter(
+               racafeForms::racafeButton("actualizar", "Actualizar", icon = "sync", ns = ns,
+                                         variant = "primary", size = "xxs"), align = "right"),
              .CargaIndicadoresUI(ns, shiny::div(class = "crm-panel", tabla, shiny::uiOutput(ns("estado")))))
 }
 

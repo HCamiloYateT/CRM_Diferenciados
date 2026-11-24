@@ -11,7 +11,7 @@
 
 # Glosario comercial ----
 
-.GlosarioDiferenciadosUI <- function() {
+.GlosarioHeaderUI <- function() {
   secciones <- list(
     "Clientes y gestión comercial" = c(
       "PerCod" = "Código institucional de la persona o empresa en SysCafe. Cada cuenta se consulta por su PerCod.",
@@ -42,21 +42,19 @@
       "Corte operacional" = "Fecha de la publicación de SysCafe disponible en la sesión."
     )
   )
-  contenido <- lapply(names(secciones), function(titulo) {
-    definiciones <- secciones[[titulo]]
-    div(class = "mb-3",
-        tags$h5(titulo),
-        if (.disponible_api("racafeForms", "racafeInfoGrid")) {
-          racafeForms::racafeInfoGrid(columns = 2, lapply(names(definiciones), function(termino) {
-            racafeForms::racafeInfoItem(termino, unname(definiciones[[termino]]))
-          }))
-        } else tags$dl(lapply(names(definiciones), function(termino) {
+  tags$div(
+    class = "dropdown",
+    tagAppendAttributes(.boton_header("glosario", "Glosario comercial", "book-open"),
+                        `data-toggle` = "dropdown", `aria-haspopup` = "true", `aria-expanded` = "false"),
+    tags$div(
+      class = "dropdown-menu kb-scale-menu crm-glosario", `aria-labelledby` = "glosario",
+      tags$h5("Glosario comercial"),
+      lapply(names(secciones), function(titulo) {
+        definiciones <- secciones[[titulo]]
+        tagList(tags$h6(titulo), tags$dl(lapply(names(definiciones), function(termino) {
           tagList(tags$dt(termino), tags$dd(definiciones[[termino]]))
         })))
-  })
-  shiny::modalDialog(
-    title = "Glosario comercial de Diferenciados", size = "l", easyClose = TRUE,
-    tags$p("Definiciones para interpretar las cuentas, los pedidos y los indicadores del CRM."),
-    contenido, footer = shiny::modalButton("Cerrar")
+      })
+    )
   )
 }

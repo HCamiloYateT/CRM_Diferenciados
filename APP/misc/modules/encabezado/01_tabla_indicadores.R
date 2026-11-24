@@ -7,11 +7,15 @@
 TablaIndicadoresUI <- function(id) {
   ns <- shiny::NS(id)
   tabla <- if (.IndicadoresGT("racafeCompactTable")) gt::gt_output(ns("tabla")) else shiny::uiOutput(ns("tabla"))
-  contenido <- shiny::tagList(shiny::tags$h6("Indicadores de mercado"), tabla,
-                               shiny::uiOutput(ns("estado")), .boton(ns("actualizar"), "Actualizar", "rotate"))
-  if (.disponible_api("racafeForms", "racafeForm")) {
-    contenido <- racafeForms::racafeForm(contenido, size = "compact", variant = "plain")
-  }
+  contenido <- racafeForms::racafeForm(
+    shiny::tags$h6("Indicadores de mercado"), tabla, shiny::uiOutput(ns("estado")),
+    racafeForms::racafeFormFooter(
+      racafeForms::racafeButton("actualizar", "Actualizar", icon = "sync", variant = "primary", size = "xxs",
+                                ns = ns, title = "Actualizar indicadores"),
+      align = "right"
+    ),
+    size = "compact", variant = "plain"
+  )
   .CargaIndicadoresUI(ns, contenido)
 }
 

@@ -118,7 +118,8 @@
         p <- plotly::plot_ly(x = meses, y = valores, type = "scatter", mode = "lines+markers",
                              name = "Real", line = list(color = "#DA291C"))
         p <- plotly::add_trace(p, x = meses, y = rep(0, nrow(datos)), name = "Ppto")
-        plotly::layout(p, title = titulo, xaxis = list(title = ""), yaxis = list(title = ""))
+        plotly::layout(p, title = titulo, xaxis = list(title = ""),
+                       yaxis = list(title = "", tickprefix = if (campo == "MNFCC_COP") "$" else ""))
       }
       output$serie_sacos <- plotly::renderPlotly(serie("SacosPedidos", "Presupuesto de sacos"))
       output$serie_mnfcc <- plotly::renderPlotly(serie("MNFCC_COP", "Presupuesto de MNFCC (COP)"))
@@ -129,7 +130,7 @@
       meses_al_corte <- if (length(corte)) datos$Mes <= format(as.Date(corte), "%Y-%m") else rep(FALSE, 12L)
       total <- if (any(meses_al_corte)) .dp_suma(datos$SacosPedidos[meses_al_corte]) else NA_real_
       valores <- c("Ppto de sacos" = "0", "Sacos pedidos" = .formato_cantidad(total),
-                   "Ppto MNFCC (COP)" = "0", "Cumplimiento con meta cero" = "No disponible")
+                   "Ppto MNFCC (COP)" = .formato_moneda_crm(0), "Cumplimiento con meta cero" = "No disponible")
       div(class = "crm-kpis", lapply(seq_along(valores), function(i) {
         div(class = "crm-kpi", span(names(valores)[i]), strong(valores[i]))
       }))
