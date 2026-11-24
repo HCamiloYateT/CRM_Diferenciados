@@ -347,7 +347,8 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       if (is.null(registros) || !all(c("etapa", "empresa") %in% names(registros))) return(NULL)
       div(class = "crm-kpis", lapply(c("CONTACTO", "PROSPECTO", "LEAD"), function(etapa) {
         grupo <- registros[which(registros$etapa == etapa), , drop = FALSE]
-        div(class = "crm-panel", h2(etapa), lapply(grupo$empresa, function(empresa) {
+        titulo <- h2(etapa, style = paste0("color:", .colores_etapa_crm[[etapa]]))
+        div(class = "crm-panel", titulo, lapply(grupo$empresa, function(empresa) {
           if (.disponible_api("racafeModulos", "TarjetaKanbanUI")) return(racafeModulos::TarjetaKanbanUI(empresa))
           div(class = "crm-kpi", empresa)
         }))

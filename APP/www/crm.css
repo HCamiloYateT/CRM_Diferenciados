@@ -7,8 +7,6 @@
 .crm-header-identidad { display: flex; align-items: center; gap: .5rem; padding: .4rem .7rem; }
 .crm-header-identidad > span { display: inline-flex; align-items: center; gap: .35rem; }
 .crm-identidad { border: 0; background: transparent; font-size: .75rem; font-weight: 600; color: var(--crm-muted); }
-.crm-header-menu { display: grid; gap: .35rem; padding: .65rem; }
-.crm-header-menu .btn { text-align: left; }
 .crm-vista { padding: .75rem .5rem 1rem; }
 .crm-vista-cabecera { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
 .crm-vista h1 { font-size: 1.5rem; margin: 0 0 .75rem; }

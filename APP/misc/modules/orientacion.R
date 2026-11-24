@@ -54,27 +54,6 @@
             "Cada cifra depende del corte, la cobertura histórica y la unidad de medida indicada.")))))
 }
 
-.GlosarioDiferenciadosUI <- function() {
-  definiciones <- c(
-    PerCod = "Identificador institucional del cliente.",
-    Cohorte = "Período de creación del primer pedido observado del PerCod en la línea 20000.",
-    "Compromiso de embarque" = "Fecha o período previsto asociado al pedido.",
-    "Embarque efectivo" = "Fecha de ejecución verificada para evaluar cumplimiento.",
-    FCC = "Margen financiero asociado a una operación conciliada.",
-    "Market Basket" = "Análisis de ítems comprados juntos que orienta posibles ventas cruzadas."
-  )
-  contenido <- if (.disponible_api("racafeForms", "racafeInfoGrid")) {
-    racafeForms::racafeInfoGrid(columns = 2, lapply(seq_along(definiciones), function(i) {
-      racafeForms::racafeInfoItem(names(definiciones)[i], definiciones[i])
-    }))
-  } else {
-    shiny::tags$dl(lapply(seq_along(definiciones), function(i) {
-      shiny::tagList(shiny::tags$dt(names(definiciones)[i]), shiny::tags$dd(definiciones[i]))
-    }))
-  }
-  shiny::modalDialog(title = "Glosario comercial", contenido, easyClose = TRUE, footer = shiny::modalButton("Cerrar"))
-}
-
 .PresupuestoCeroUI <- function(id) {
   ns <- shiny::NS(id)
   div(class = "crm-vista", shiny::h1("Presupuesto"),
