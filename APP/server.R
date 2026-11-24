@@ -25,7 +25,7 @@ server <- function(input, output, session) {
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
   identidad <- toupper(session$user %||% "HCYATE")
-  grupos <- paste(toupper(session$groups %||% "ANALÍTICA"), collapse = ", ")
+  grupos <- toupper(session$groups %||% "ANALÍTICA")
 
   refrescar_gestion <- function() {
     actualizado <- isolate(publicaciones())
@@ -104,12 +104,15 @@ server <- function(input, output, session) {
   )
 
   output$identidad_header <- renderUI({
-    contenido <- tagList(tags$span(identidad), tags$small(paste("·", grupos)))
     tags$button(id = "usuario", type = "button", class = "action-button crm-identidad",
-                title = "Información de sesión", contenido)
+                title = "Información de sesión",
+                tags$span(class = "badge badge-secondary", identidad),
+                if (length(grupos)) tags$span(`aria-hidden` = "true", "|"),
+                lapply(grupos, function(grupo) tags$span(class = "badge badge-light text-dark", grupo)))
   })
   observeEvent(input$usuario, {
-    showModal(modalDialog(title = "Usuario y grupos", tags$p(identidad), tags$p(grupos), uiOutput("estado_corte"),
+    showModal(modalDialog(title = "Usuario y grupos", tags$p(identidad),
+                          tags$p(paste(grupos, collapse = ", ")), uiOutput("estado_corte"),
                           footer = modalButton("Cerrar")))
   })
 
