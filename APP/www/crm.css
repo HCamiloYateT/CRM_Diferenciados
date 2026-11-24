@@ -4,9 +4,28 @@
   --crm-muted: var(--color-gray-920, #495057);
   --crm-rule: var(--color-gray-400, #d6d6d6);
 }
-.crm-header-identidad { display: flex; align-items: center; gap: .5rem; padding: .4rem .7rem; }
-.crm-header-identidad > span { display: inline-flex; align-items: center; gap: .35rem; }
-.crm-identidad { border: 0; background: transparent; font-size: .75rem; font-weight: 600; color: var(--crm-muted); }
+.crm-header-identidad { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.crm-identidad {
+  display: inline-flex; align-items: baseline; gap: .25rem; padding: 0; border: 0;
+  background: transparent; color: #686e73; font-size: .68rem; font-weight: 600; white-space: nowrap;
+}
+.crm-identidad small { font-size: .6rem; }
+.crm-header-identidad :is(#actualizar, #descarga_clientes, #glosario, #escalas_color) {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 27px;
+  min-height: 22px; padding: 2px 6px; border: 0; border-radius: 50rem;
+  background: #6c757d; color: #fff; font-size: .7rem; line-height: 1;
+}
+.crm-header-identidad #actualizar { min-width: 42px; border-radius: 4px; }
+.crm-header-identidad :is(#actualizar, #descarga_clientes, #glosario, #escalas_color):hover {
+  background: var(--crm-red); color: #fff;
+}
+.main-header .navbar-right > li { display: flex; align-items: center; }
+.main-header .navbar-right > li > :is(.nav-link, button) {
+  display: inline-flex; align-items: center; justify-content: center; position: relative;
+  min-width: 48px; min-height: 40px; padding: 0; border: 0;
+  background: transparent; color: #202428; font-size: .82rem;
+}
+.main-header .navbar-right > li > :is(.nav-link, button):hover { color: var(--crm-red); }
 .crm-vista { padding: .75rem .5rem 1rem; }
 .crm-vista-cabecera { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
 .crm-vista h1 { font-size: 1.5rem; margin: 0 0 .75rem; }

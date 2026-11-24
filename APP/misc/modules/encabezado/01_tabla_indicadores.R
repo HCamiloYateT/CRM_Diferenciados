@@ -107,6 +107,5 @@ TablaIndicadores <- function(id, abierto, vigentes) {
     })
   }
   TablaIndicadores("ind_kpis", abierto, vigentes)
-  ComparacionIndicadores("comparacion_indicadores",
-                         reactive(identical(input$navegacion, "comparacion_indicadores")), vigentes)
+  vigentes
 }

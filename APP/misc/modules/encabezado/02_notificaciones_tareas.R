@@ -23,10 +23,13 @@
     clave <- id
     menu <- .menus_seguimiento_header[[clave]]
     notas <- menu$vista == "notas"
-    contenido <- reactive({
+    filas_menu <- reactive({
       d <- registros()
       filas <- if (notas) which(d$tipo == "NOTA") else which(d$tipo != "NOTA" & d$estado == "PENDIENTE")
-      d <- d[filas, , drop = FALSE]
+      d[filas, , drop = FALSE]
+    })
+    contenido <- reactive({
+      d <- filas_menu()
       if (!nrow(d)) {
         mensaje <- if (notas) "Sin notas propias." else "Sin tareas pendientes asignadas."
         return(.nota(mensaje, "empty"))
@@ -40,7 +43,8 @@
     })
     navegar <- function() updatebs4TabItems(session, "navegacion", selected = menu$vista)
     if (.MenuIndicadoresCorporativo()) {
-      desplegable <- racafeModulos::MenuHeaderServer(clave, items_r = contenido, href = "#", footerText = menu$enlace)
+      desplegable <- racafeModulos::MenuHeaderServer(clave, items_r = contenido, href = "#", footerText = menu$enlace,
+                                                     badgeStatus_r = "danger", badge_n_r = reactive(nrow(filas_menu())))
       observeEvent(desplegable$footer_click(), navegar())
     } else {
       ir <- paste0(clave, "_ir")

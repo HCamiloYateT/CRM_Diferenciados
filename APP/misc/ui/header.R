@@ -8,7 +8,7 @@
   boton <- if (.disponible_api("racafeForms", "racafeButton")) {
     racafeForms::racafeButton(id, NULL, icon = simbolo, title = titulo, size = "xxs", variant = "secondary")
   } else {
-    shiny::actionButton(id, NULL, icon = shiny::icon(simbolo), title = titulo, class = "btn-sm btn-outline-secondary")
+    shiny::actionButton(id, NULL, icon = shiny::icon(simbolo), title = titulo, class = "btn-sm btn-secondary")
   }
   shiny::tagAppendAttributes(boton, `aria-label` = titulo)
 }
@@ -42,7 +42,7 @@
   descarga <- if (.disponible_api("racafeForms", "racafeButtonDownload")) {
     racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "users",
                                       size = "xxs", variant = "secondary")
-  } else downloadButton("descarga_clientes", "Excel", class = "btn-sm btn-outline-secondary")
+  } else downloadButton("descarga_clientes", NULL, icon = icon("users"), class = "btn-sm btn-secondary")
   descarga <- shiny::tagAppendAttributes(descarga, title = "Descargar clientes", `aria-label` = "Descargar clientes")
   indicadores <- if (.MenuIndicadoresCorporativo()) {
     racafeModulos::MenuHeaderUI("MenuIndicadores", icon = shiny::icon("arrow-trend-up"),
