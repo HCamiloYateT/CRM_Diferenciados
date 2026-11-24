@@ -16,8 +16,6 @@ server <- function(input, output, session) {
       publicaciones(.leer_dominios(.raiz_crm))
     }, once = TRUE)
   }
-  session$onFlushed(refrescar, once = TRUE)
-
   filtros <- reactive(list(
     periodo = if (isTRUE(input$usar_periodo) && length(input$periodo) == 2L && !anyNA(input$periodo)) input$periodo,
     pais = input$filtro_pais, destino = input$filtro_destino,
@@ -39,6 +37,9 @@ server <- function(input, output, session) {
     tipo <- if (id %in% c("gestion", "tarea")) "tarea" else id
     capturar(tipo, cliente = cliente)
   }
+
+  # Carga diferida ----
+  session$onFlushed(refrescar, once = TRUE)
 
   # Outputs ----
   ## Controlbar ----
@@ -70,10 +71,11 @@ server <- function(input, output, session) {
     }
   })
 
-  for (id in names(.acciones)) local({
-    accion <- id
-    observeEvent(input[[paste0("control_", accion)]], abrir_accion(accion))
-  })
+  observeEvent(input$control_tarea, abrir_accion("tarea"))
+  observeEvent(input$control_gestion, abrir_accion("gestion"))
+  observeEvent(input$control_contacto, abrir_accion("contacto"))
+  observeEvent(input$control_oportunidad, abrir_accion("oportunidad"))
+  observeEvent(input$control_muestra, abrir_accion("muestra"))
 
   ## Header ----
   observeEvent(input$actualizar, refrescar())

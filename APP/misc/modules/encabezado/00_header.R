@@ -1,3 +1,14 @@
+# Botones del encabezado ----
+
+.boton_header <- function(id, titulo, simbolo) {
+  boton <- if (.disponible_api("racafeForms", "racafeButton")) {
+    racafeForms::racafeButton(id, NULL, icon = simbolo, title = titulo, size = "xxs", variant = "secondary")
+  } else {
+    shiny::actionButton(id, NULL, icon = shiny::icon(simbolo), title = titulo, class = "btn-sm btn-secondary")
+  }
+  shiny::tagAppendAttributes(boton, `aria-label` = titulo)
+}
+
 # Glosario comercial ----
 
 .GlosarioDiferenciadosUI <- function() {

@@ -150,3 +150,9 @@
 .colores_etapa_crm <- c(CONTACTO = "#6C757D", PROSPECTO = "#E69F00", LEAD = "#0072B2",
                        CLIENTE = "#009E73", DESCARTADO = "#CC79A7")
 .colores_prioridad_crm <- c(ALTA = "#E69F00", MEDIA = "#0072B2", BAJA = "#009E73")
+
+# Acciones de captura ----
+
+.acciones <- list(contacto = list(titulo = "Crear contacto"), gestion = list(titulo = "Nueva gestión"),
+                   oportunidad = list(titulo = "Nueva oportunidad"), muestra = list(titulo = "Nueva muestra"),
+                   tarea = list(titulo = "Tareas y notas"))
