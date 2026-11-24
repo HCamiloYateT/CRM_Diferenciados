@@ -21,7 +21,7 @@ function(input, output, session) {
   filtros <- reactive(list(
     periodo = if (isTRUE(input$usar_periodo) && length(input$periodo) == 2L && !anyNA(input$periodo)) input$periodo,
     pais = input$filtro_pais, destino = input$filtro_destino,
-    cliente = input$filtro_cliente, percod = trimws(input$percod %||% ""), estado = input$filtro_estado
+    creador = input$filtro_creador, cliente = input$filtro_cliente, percod = trimws(input$percod %||% ""), estado = input$filtro_estado
   ))
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
@@ -38,6 +38,7 @@ function(input, output, session) {
     }
     tagList(opciones("filtro_pais", "País de la empresa", sort(unique(clientes$codigo_pais))),
             opciones("filtro_destino", "País de destino", sort(unique(lineas$PaiCodDtn))),
+            opciones("filtro_creador", "Usuario que creó el pedido", sort(unique(pedidos$PdcUsu))),
             opciones("filtro_estado", "Estado de pedido", sort(unique(pedidos$estado_original))))
   })
   observeEvent(publicaciones(), {
@@ -47,7 +48,7 @@ function(input, output, session) {
   observeEvent(input$limpiar, {
     updateCheckboxInput(session, "usar_periodo", value = FALSE)
     updateTextInput(session, "percod", value = "")
-    for (id in c("filtro_pais", "filtro_destino", "filtro_cliente", "filtro_estado")) {
+    for (id in c("filtro_pais", "filtro_destino", "filtro_cliente", "filtro_estado", "filtro_creador")) {
       updateSelectizeInput(session, id, selected = character())
     }
   })
@@ -92,7 +93,8 @@ function(input, output, session) {
   output$descarga_clientes <- downloadHandler(
     filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".csv"),
     content = function(ruta) {
-      clientes <- .clientes_vista(operativo()$clientes)
+      clientes <- .clientes_vista(operativo()$clientes, operativo()$pedidos,
+                                 .margenes_filtrados(publicaciones(), operativo()$pedidos))
       req(!is.null(clientes), nrow(clientes))
       # Los nombres de origen pueden comenzar por caracteres que una hoja de cálculo ejecutaría.
       clientes[] <- lapply(clientes, function(x) {
@@ -107,17 +109,40 @@ function(input, output, session) {
                           footer = modalButton("Cerrar")))
   })
   output$identidad_header <- renderUI({
-    identidad <- session$user %||% "Usuario"
+    identidad <- toupper(session$user %||% "Usuario")
+    grupos <- paste(toupper(session$groups %||% character()), collapse = ", ")
+    contenido <- tagList(tags$span(identidad), if (nzchar(grupos)) tags$small(paste("·", grupos)))
     tags$button(id = "usuario", type = "button", class = "action-button crm-identidad", title = "Información de sesión",
-                identidad)
+                contenido)
   })
   observeEvent(input$usuario, {
     identidad <- session$user %||% "Sesión sin identidad institucional"
-    showModal(modalDialog(title = "Usuario", tags$p(identidad), uiOutput("estado_corte"),
+    showModal(modalDialog(title = "Usuario", tags$p(identidad), tags$p(paste("Grupos:", paste(session$groups %||% "Sin grupos", collapse = ", "))),
+                          uiOutput("estado_corte"),
                           footer = modalButton("Cerrar")))
   })
 
   observeEvent(input$glosario, showModal(.GlosarioDiferenciadosUI()))
+
+  tareas_usuario <- reactive({
+    d <- .gestion_filas(publicaciones()$crm$tablas, "tareas")
+    usuario <- toupper(session$user %||% character())
+    d[which(d$estado == "PENDIENTE" & d$tipo != "NOTA" & toupper(d$responsable) %in% usuario), , drop = FALSE]
+  })
+  pendientes_ui <- reactive({
+    d <- .gestion_agenda(tareas_usuario())
+    if (!nrow(d)) return(.nota("Sin tareas pendientes asignadas.", "empty"))
+    tags$ul(lapply(seq_len(min(8L, nrow(d))), function(i) {
+      tags$li(paste(as.character(d$seguimiento[i]), "·", d$asunto[i]))
+    }))
+  })
+  if (.MenuIndicadoresCorporativo()) {
+    tablero_header <- racafeModulos::MenuHeaderServer("MenuTareas", items_r = pendientes_ui, href = "#",
+                                                     footerText = "Abrir agenda")
+    observeEvent(tablero_header$footer_click(), updatebs4TabItems(session, "navegacion", selected = "tareas"))
+  } else observeEvent(input$pendientes_header, {
+    showModal(modalDialog(title = "Tareas pendientes", pendientes_ui(), footer = modalButton("Cerrar")))
+  })
 
   mercado <- reactiveVal(NULL)
   vigentes <- function(refrescar = FALSE) {
@@ -160,7 +185,9 @@ function(input, output, session) {
   })
 
   for (id in names(.vistas)) {
-    if (id %in% names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar) else
-      VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando)
+    if (id %in% names(.operacion_vistas)) OperacionServer(id, publicaciones, operativo, filtros) else
+      if (id %in% names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar) else
+      VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando,
+                 function(tab) updatebs4TabItems(session, "navegacion", selected = tab))
   }
 }

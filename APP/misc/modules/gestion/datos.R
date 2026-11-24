@@ -28,6 +28,8 @@
     tareas = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, tipo = ch, asunto = ch, resultado = ch,
       fecha = fecha, seguimiento = fecha, estado = ch, oportunidad_id = ch, muestra_id = ch, responsable = ch,
       actualizada = instante), list(ref("oportunidades", "oportunidad_id"), ref("muestras", "muestra_id"))),
+    tarea_prioridad = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, prioridad = ch),
+      list(ref("tareas", "tarea_id"))),
     contactos = contrato("contacto_id", data.frame(contacto_id = ch, PerCod = ch, nombre = ch,
       correo = ch, telefono = ch, preferencia_calidad = ch))
   )
@@ -163,7 +165,7 @@
         responsable = if (is.null(origen)) usuario else actual$responsable, actualizada = ahora)
     } else if (tipo == "tarea") {
       fila <- data.frame(tarea_id = id, PerCod = cliente,
-        tipo = .gestion_dominio(campos$tipo, c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO")),
+        tipo = .gestion_dominio(campos$tipo, c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO", "NOTA")),
         asunto = .gestion_campo(campos$asunto, "asunto"), resultado = .gestion_texto(campos$resultado),
         fecha = .gestion_fecha(campos$fecha, "fecha de actividad", TRUE),
         seguimiento = .gestion_fecha(campos$seguimiento, "fecha de seguimiento",
@@ -174,6 +176,13 @@
       fila <- data.frame(contacto_id = id, PerCod = cliente, nombre = .gestion_campo(campos$asunto, "nombre"),
         correo = .gestion_texto(campos$correo), telefono = .gestion_texto(campos$telefono),
         preferencia_calidad = .gestion_texto(campos$calidad))
+    }
+    if (tipo == "tarea") {
+      prioridad <- .gestion_texto(campos$prioridad)
+      if (is.na(prioridad)) prioridad <- "MEDIA"
+      prioridad <- .gestion_dominio(prioridad, c("ALTA", "MEDIA", "BAJA"))
+      t$tarea_prioridad <- .gestion_upsert(t$tarea_prioridad,
+                                          data.frame(tarea_id = id, PerCod = cliente, prioridad = prioridad), "tarea_id")
     }
     t[[tabla]] <- .gestion_upsert(t[[tabla]], fila, llave)
     t

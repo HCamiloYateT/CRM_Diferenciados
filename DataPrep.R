@@ -461,7 +461,12 @@ LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR",
                            PueCodOri = .dp_col(lineas, "PueCodOri"),
                            categoria_homologada = rep(NA_character_, nrow(lineas)),
                            producto_homologado = rep(NA_character_, nrow(lineas)))
-  for (campo in c("ForPagCod", "ForPagNom")) fact_pedidos[[campo]] <- .dp_col(cab, campo)
+  for (campo in c("ForPagCod", "ForPagNom", "ForPagFrf", "ForPagPlz", "PdcUsu", "PdcCntCli",
+                  "PdcLotNyc", "PdcVtaNal")) fact_pedidos[[campo]] <- .dp_col(cab, campo)
+  signo <- .dp_col(cab, "PdcSig")
+  puntos <- .dp_numero(.dp_col(cab, "PdcPtos"))
+  fact_pedidos$diferencial_venta <- ifelse(signo == "+", puntos, ifelse(signo == "-", -puntos,
+    ifelse(!is.na(signo) & trimws(signo) == "", 0, NA_real_)))
   etiquetas <- c("LinNegNom", "LinProNom", "MrcNom", "MCNom", "PaisDtn", "ISO2Dtn", "PuertoDtn",
                  "PaisOri", "ISO2Ori", "PuertoOri")
   for (campo in etiquetas) fact_lineas[[campo]] <- .dp_col(lineas, campo)
@@ -477,6 +482,9 @@ LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR",
   dim_clientes <- data.frame(PerCod = raw_clientes$PerCod, PerRazSoc = .dp_col(raw_clientes, "PerRazSoc"),
                             codigo_pais = .dp_col(raw_clientes, "PaiCod"), pais = .dp_col(raw_clientes, "Pais"),
                             iso2 = .dp_col(raw_clientes, "ISO2"))
+  for (campo in c("CiuExtNom", "CliCont", "CliTel", "CliConCom", "CliTelCom", "CliEmlCom")) {
+    dim_clientes[[campo]] <- .dp_col(raw_clientes, campo)
+  }
   calidad <- rbind(
     .dp_incidencia(pedido_id, is.na(fecha), "creacion_sin_fecha_valida"),
     .dp_incidencia(pedido_id, substr(cab$PdcFecCre, 1L, 10L) == "1753-01-01", "creacion_centinela"),
@@ -540,7 +548,6 @@ LeerPublicacionRDS <- function(raiz, dominio, ruta = Sys.getenv("CRM_DATOS_DIR",
                origen = rep("linea", nrow(det)), periodo = rep(NA_character_, nrow(det)),
                fecha = det$fecha_embarque_linea)
   )
-  tablas$jerarquia_cuentas <- data.frame(PerCod = character(), cuenta_padre = character(), desde = as.Date(character()))
   tablas
 }
 
@@ -551,7 +558,7 @@ ContratosOperacionales <- function(tablas) {
                  volumen_cliente = "PerCod", pedidos_por_periodo = "periodo", cohortes_mensuales = "periodo",
                  hechos_productos = c("pedido_id", "PdcLin"), dim_marcas = "item", dim_nombres_comerciales = "item",
                  relacion_marca_nombre = c("pedido_id", "PdcLin"), pedidos_por_destino = c("periodo", "pais"),
-                 jerarquia_cuentas = c("PerCod", "desde"), paises = "iso2", homologaciones = "fuente",
+                 jerarquia_cuentas = c("PerCod", "desde"), paises = "iso2", paises_syscafe = "PaiCod", margenes = "margen_id", homologaciones = "fuente",
                  referencias_embarque = c("pedido_id", "referencia"),
                  calidad = "incidencia")
   contratos <- lapply(names(tablas), function(nombre) {
@@ -617,7 +624,8 @@ ContratosOperacionales <- function(tablas) {
   } else raw <- lineas
   base <- data.frame(pedido_id = lineas$pedido_id, PdcLin = lineas$PdcLin, CiaCod = cab$CiaCod,
                      PerCod = cab$PerCod, fecha = cab$fecha_creacion, pais = lineas$PaiCodDtn, sacos = lineas$sacos,
-                     estado = cab$estado_original, comercial = .prod_texto(cab, "comercial"))
+                     estado = cab$estado_original, creador = .prod_texto(cab, "PdcUsu"),
+                     comercial = .prod_texto(cab, "comercial"))
   raw_pedidos <- tablas$raw_pedidos$datos[[1L]]
   if (!is.null(raw_pedidos) && "Comercial" %in% names(raw_pedidos)) {
     .dp_clave(raw_pedidos, c("CiaCod", "PdcCod"), "cabecera original de productos")
@@ -767,7 +775,8 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
 }
 
 .dp_catalogo_valor <- function(claves, catalogo, clave, valor) {
-  grupos <- split(catalogo[[valor]], catalogo[[clave]])
+  if (!all(c(clave, valor) %in% names(catalogo))) return(rep(NA_character_, length(claves)))
+  grupos <- split(as.character(catalogo[[valor]]), catalogo[[clave]])
   unicos <- vapply(grupos, function(x) {
     valores <- unique(x[!is.na(x) & nzchar(x)])
     if (length(valores) == 1L) valores[[1L]] else NA_character_
@@ -795,9 +804,9 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
 
   # Los catálogos pertenecen a SysCafe y no alteran la granularidad de los hechos.
   sql <- c(personas = "SELECT PerCod, PerRazSoc FROM NPERSONA",
-           clientes = "SELECT CliNit, CiuExtCod FROM NCLIENTE",
+           clientes = "SELECT CliNit, CiuExtCod, CliCont, CliTel, CliConCom, CliTelCom, CliEmlCom FROM NCLIENTE",
            ciudades = "SELECT CiuExtCod, CiuExtNom, PaiExtCod FROM NCIUEXT",
-           paises = "SELECT PaiCod, PaiNom, PaiSglDian FROM NPAISES",
+           paises = "SELECT * FROM NPAISES",
            puertos = "SELECT PaiCod, PueCod, PueNom FROM NPUERTOS",
            marcas = "SELECT MrcCod, MrcNom FROM NMARCAS",
            productos = "SELECT CiaCod, LinProCod, LinProNom FROM NTIPPROD",
@@ -819,8 +828,14 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
   clientes <- data.frame(PerCod = ids, PerRazSoc = nombre, CiuExtCod = ciudad, PaiCod = codigo_pais,
                           Pais = .dp_catalogo_valor(codigo_pais, paises, "PaiCod", "PaiNom"),
                           ISO2 = .dp_catalogo_valor(codigo_pais, paises, "PaiCod", "iso2"))
-  pedidos <- .dp_completar(pedidos, "ForPagNom",
-                           .dp_catalogo_valor(.dp_col(pedidos, "ForPagCod"), catalogos$pagos, "ForPagCod", "ForPagNom"))
+  clientes$CiuExtNom <- .dp_catalogo_valor(ciudad, catalogos$ciudades, "CiuExtCod", "CiuExtNom")
+  for (campo in c("CliCont", "CliTel", "CliConCom", "CliTelCom", "CliEmlCom")) {
+    clientes[[campo]] <- .dp_catalogo_valor(ids, catalogos$clientes, "CliNit", campo)
+  }
+  for (campo in c("ForPagNom", "ForPagFrf", "ForPagPlz")) {
+    etiqueta <- .dp_catalogo_valor(.dp_col(pedidos, "ForPagCod"), catalogos$pagos, "ForPagCod", campo)
+    pedidos <- .dp_completar(pedidos, campo, etiqueta)
+  }
   lineas <- .dp_completar(lineas, "MCCod", .dp_col(lineas, "NomComCod"))
   lineas <- .dp_completar(lineas, "MrcNom",
                           .dp_catalogo_valor(.dp_col(lineas, "MrcCod"), catalogos$marcas, "MrcCod", "MrcNom"))
@@ -913,10 +928,42 @@ PublicarOperacionalRDS <- function(raiz, tablas, contratos, procedencia) {
   tablas
 }
 
+# Margen total en COP del consolidado PyG por lote ----
+
+.dp_margenes_pyg <- function(pyg, pedidos, corte) {
+  campos <- c("LINNEG", "CLIENTE", "PED_SISTEMA", "SUCURSAL", "LOTE", "FACTURA", "FECFACTURA", "MNFCC")
+  if (!is.data.frame(pyg) || !all(campos %in% names(pyg))) stop("El PyG no contiene los campos requeridos.")
+  d <- pyg[which(trimws(as.character(pyg$LINNEG)) == "20000"), campos, drop = FALSE]
+  total <- nrow(d)
+  d$fecha <- .dp_fecha(as.character(d$FECFACTURA))
+  d <- d[which(d$fecha <= corte), , drop = FALSE]
+  # El número de pedido debe identificar una cabecera única dentro del mismo cliente.
+  llaves <- .prod_id(trimws(pedidos$PerCod), trimws(pedidos$PdcCod))
+  ambigua <- duplicated(llaves) | duplicated(llaves, fromLast = TRUE)
+  indice <- match(.prod_id(trimws(as.character(d$CLIENTE)), trimws(as.character(d$PED_SISTEMA))), llaves)
+  validos <- which(!is.na(indice) & !ambigua[indice])
+  d <- d[validos, , drop = FALSE]
+  indice <- indice[validos]
+  clave <- c("SUCURSAL", "LOTE", "FACTURA", "CLIENTE", "PED_SISTEMA")
+  # El PyG puede traer varias filas por lote. Se excluyen las claves repetidas hasta confirmar su grano.
+  completos <- Reduce(`&`, lapply(d[clave], function(x) !is.na(x) & nzchar(trimws(as.character(x)))))
+  unicos <- completos & !duplicated(d[clave]) & !duplicated(d[clave], fromLast = TRUE)
+  d <- d[unicos, , drop = FALSE]
+  indice <- indice[unicos]
+  if (length(validos) != total || any(!unicos)) {
+    message("PyG: se omitieron filas sin fecha de corte aplicable o sin vínculo único.")
+  }
+  monto <- suppressWarnings(as.numeric(as.character(d$MNFCC)))
+  monto[!is.finite(monto)] <- NA_real_
+  data.frame(margen_id = seq_len(nrow(d)), pedido_id = pedidos$pedido_id[indice], PerCod = pedidos$PerCod[indice],
+             sucursal = d$SUCURSAL, lote = d$LOTE, factura = d$FACTURA, fecha = d$fecha, MNFCC = monto)
+}
+
 # Extracción, objetos de consumo y publicación ----
 
 EjecutarDataPrep <- function(corte = as.Date(Sys.time(), tz = "America/Bogota"),
-                              raiz = ".", consulta = racafeBD::ConsultaSistema) {
+                              raiz = ".", consulta = racafeBD::ConsultaSistema,
+                              ruta_pyg = Sys.getenv("CRM_PYG_LOTE_RDS")) {
   fecha_corte <- .dp_fecha(as.character(corte))
   if (length(fecha_corte) != 1L || is.na(fecha_corte) || !identical(as.character(fecha_corte), as.character(corte))) {
     stop("Indique una fecha de corte YYYY-MM-DD.", call. = FALSE)
@@ -932,16 +979,26 @@ EjecutarDataPrep <- function(corte = as.Date(Sys.time(), tz = "America/Bogota"),
   }
   tablas$homologaciones <- data.frame(fuente = names(origen$catalogos), datos = I(unname(origen$catalogos)))
   iso <- sort(unique(stats::na.omit(origen$paises$iso2)))
-  tablas$paises <- data.frame(iso2 = iso, nombre = .dp_catalogo_valor(iso, origen$paises, "iso2", "PaiNom"))
+  tablas$paises <- data.frame(iso2 = iso, nombre = .dp_catalogo_valor(iso, origen$paises, "iso2", "PaiNom"),
+                              nombre_ingles = .dp_catalogo_valor(iso, origen$paises, "iso2", "PaiNomEng"),
+                              nombre_corto = .dp_catalogo_valor(iso, origen$paises, "iso2", "PaiNomMin"))
+  tablas$paises_syscafe <- unique(origen$paises)
+  tablas$paises_syscafe <- tablas$paises_syscafe[!is.na(tablas$paises_syscafe$PaiCod), , drop = FALSE]
 
   # Objetos analíticos para la app ----
   tablas <- .dp_analitica(tablas, fecha_corte)
   tablas <- .dp_productos_destinos(tablas, fecha_corte)
   tablas$calidad$incidencia <- seq_len(nrow(tablas$calidad))
 
-  # Las exportaciones, los embarques efectivos y FCC quedan pendientes de fuente validada.
-  procedencia <- list(fuentes = origen$fuentes, corte = fecha_corte,
-                      pendientes = c("exportaciones", "lotes", "embarques", "margenes"))
+  pendientes <- c("exportaciones", "lotes", "embarques")
+  fuentes <- origen$fuentes
+  if (nzchar(ruta_pyg) && file.exists(ruta_pyg)) {
+    tablas$margenes <- .dp_margenes_pyg(readRDS(ruta_pyg), tablas$pedidos, fecha_corte)
+    totales <- .dp_agregar(tablas$margenes$PerCod, tablas$margenes$MNFCC, tablas$clientes_comerciales$PerCod)
+    tablas$clientes_comerciales$MNFCC_COP <- totales
+    fuentes <- c(fuentes, PYG = "PyG por lote")
+  } else pendientes <- c(pendientes, "margenes")
+  procedencia <- list(fuentes = fuentes, corte = fecha_corte, pendientes = pendientes)
   manifiesto <- PublicarOperacionalRDS(raiz, tablas, ContratosOperacionales(tablas), procedencia)
   message("Corte operacional publicado: ", manifiesto$id, " · ", length(tablas), " objetos.")
   invisible(manifiesto)

@@ -35,7 +35,7 @@
   "Clientes" = list(
     directorio = .vista("Directorio comercial", "clientes_comerciales"),
     individual = .vista("Consulta individual", "clientes_comerciales"),
-    segmentacion = .vista("Segmentación", "tiers", "Los tiers corresponden a cuentas padre homologadas.")
+    segmentacion = .vista("Segmentación", "tiers", "La consulta se realiza por cuenta individual.")
   ),
   "Pedidos y embarques" = list(
     pedidos = .vista("Pedidos", "pedidos", "Volumen y valor derivados de líneas elegibles.", "pedidos"),
@@ -61,8 +61,7 @@
   ),
   "Administración" = list(
     catalogos = .vista("Catálogos", "unidades"), usuarios = .vista("Usuarios y comerciales", "responsables"),
-    tipologias = .vista("Tipologías", "tipologias"), catalogo_paises = .vista("Catálogo de países", "paises"),
-    jerarquia = .vista("Homologación de cuentas", "jerarquia_cuentas"),
+    tipologias = .vista("Tipologías", "tipologias"), catalogo_paises = .vista("Catálogo de países", "paises_syscafe"),
     productos = .vista("Homologación de productos", "productos"),
     parametros = .vista("Parámetros comerciales", "parametros"),
     tier_admin = .vista("Administración de segmentación", "tiers"),
@@ -91,10 +90,10 @@
   cohortes_clientes = .fuente("operacional", "PerCod", c("PerCod", "cohorte")),
   volumen_cliente = .fuente("operacional", "PerCod", c("PerCod", "pedidos", "sacos")),
   unidades = .fuente("operacional", "UMeCod"), calidad = .fuente("operacional", "incidencia"),
-  jerarquia_cuentas = .fuente("operacional", c("PerCod", "desde"), pendiente = "Pendiente de homologación"),
   productos = .fuente("crm", "producto_id", pendiente = "Pendiente de homologación"),
   tiers = .fuente("crm", "evaluacion_id", pendiente = "Pendiente de homologación"),
   paises = .fuente("operacional", "iso2", pendiente = "Pendiente de homologación"),
+  paises_syscafe = .fuente("operacional", "PaiCod"),
   embarques = .fuente("operacional", "embarque_id"), lotes = .fuente("operacional", "lote_id"),
   margenes = .fuente("operacional", "margen_id"), presupuesto = .fuente("operacional", "meta_id"),
   potencial = .fuente("operacional", "potencial_id"), cartera = .fuente("operacional", "obligacion_id"),
@@ -123,7 +122,7 @@
   conversiones = c("Duración desde captación y origen" = "empresas", "Conversión por comercial" = "responsables"),
   muestras = c("Envíos" = "remisiones", "Evaluaciones" = "evaluaciones"),
   seguimiento = c("Historial de envío" = "remisiones", "Resultados" = "evaluaciones"),
-  directorio = c("Responsable" = "responsables", "Cuenta padre" = "jerarquia_cuentas", "Tier" = "tiers",
+  directorio = c("Responsable" = "responsables", "Tier" = "tiers",
                  "Potencial" = "potencial", "Presupuesto" = "presupuesto"),
   cohortes = c("Parámetros de retención y reactivación" = "parametros"),
   detalle = c("Trazabilidad por lote" = "lotes"),
@@ -131,9 +130,8 @@
   margen_cliente = c("Identidad comercial" = "clientes"),
   margen_pais = c("Homologación ISO" = "paises"),
   atributos = c("Producto y categoría homologados" = "productos"),
-  presupuesto = c("Consolidación de la meta" = "jerarquia_cuentas"),
-  cumplimiento = c("Embarques efectivos" = "embarques", "Cuenta padre" = "jerarquia_cuentas"),
-  potencial = c("Cuenta padre" = "jerarquia_cuentas", "Producto homologado" = "productos"),
+  cumplimiento = c("Embarques efectivos" = "embarques"),
+  potencial = c("Producto homologado" = "productos"),
   panorama = c("Clientes por país" = "clientes", "Destinos operacionales" = "lineas_pedido",
                "Margen por país" = "margenes"),
   paises = c("Equivalencias ISO" = "paises")

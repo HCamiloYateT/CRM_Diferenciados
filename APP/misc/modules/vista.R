@@ -17,7 +17,7 @@ VistaUI <- function(id, vista) {
             })),
             tags$small("Pendiente de vínculo con el registro, permisos y servicio validado de gestión."))
       },
-      if (id == "resumen") tagList(uiOutput(ns("gestion_resumen")), uiOutput(ns("resumen")),
+      if (id == "resumen") tagList(uiOutput(ns("gestion_resumen")), uiOutput(ns("resumen")), uiOutput(ns("secciones")),
         div(class = "crm-panel", h2("Clientes con menor volumen pedido"),
             .nota("Compara los últimos 90 días del corte con los 90 días anteriores, sin el filtro de período."),
             uiOutput(ns("caidas_estado")), .tabla_ui(ns("caidas")))),
@@ -32,7 +32,7 @@ VistaUI <- function(id, vista) {
       if (id == "kanban") uiOutput(ns("tablero")),
       if (id != "individual") div(class = "crm-panel", h2(if (id == "estado") "Registro de fuentes" else "Detalle"),
                                   .tabla_ui(ns("tabla"))),
-      if (id %in% c("jerarquia", "productos", "tier_admin")) uiOutput(ns("administrar")),
+      if (id %in% c("productos", "tier_admin")) uiOutput(ns("administrar")),
       uiOutput(ns("dependencias")), uiOutput(ns("nota")))
 }
 
@@ -68,10 +68,10 @@ VistaUI <- function(id, vista) {
 }
 
 .sin_filtros_vista <- function(filtros) {
-  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado")])) && !nzchar(filtros$percod %||% "")
+  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado", "creador")])) && !nzchar(filtros$percod %||% "")
 }
 
-VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_accion, cargando) {
+VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_accion, cargando, navegar = function(id) NULL) {
   moduleServer(id, function(input, output, session) {
     datos <- reactive({
       tabla <- .vista_datos(publicaciones(), operativo(), vista$fuente, filtros())
@@ -85,7 +85,10 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         shiny::req(length(rango) == 2L, !anyNA(rango), rango[1L] <= rango[2L])
         tabla <- tabla[which(tabla$fecha_creacion >= rango[1L] & tabla$fecha_creacion <= rango[2L]), , drop = FALSE]
       }
-      if (id %in% c("directorio", "prospectos_clientes")) tabla <- .clientes_vista(tabla)
+      if (id %in% c("directorio", "prospectos_clientes")) {
+        pedidos <- operativo()$pedidos
+        tabla <- .clientes_vista(tabla, pedidos, .margenes_filtrados(publicaciones(), pedidos))
+      }
       if (id == "detalle" && !is.null(tabla) && nzchar(input$registro %||% "")) {
         tabla <- tabla[tabla$pedido_id == input$registro, , drop = FALSE]
       }
@@ -124,7 +127,9 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       }
       if (!is.null(vista$nota)) .nota(vista$nota)
     })
-    if (id != "individual") .tabla_server("tabla", datos, output)
+    if (id != "individual") {
+      .tabla_server("tabla", reactive(.etiquetar_clientes(datos(), operativo()$clientes)), output)
+    }
 
     if (!is.null(vista$grafico)) {
       serie <- reactive({
@@ -215,7 +220,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
       }
       output$ficha <- renderUI({
         if (!nzchar(input$registro %||% "")) return(NULL)
-        do.call(tabsetPanel, lapply(seq_along(.ficha), function(i) {
+        do.call(bs4Dash::tabsetPanel, lapply(seq_along(.ficha), function(i) {
           nombre <- unname(.ficha[i])
           fuente <- datos_ficha(i)
           estado <- .estado_fuente(publicaciones(), nombre)
@@ -235,12 +240,43 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
           fuente <- datos_ficha(indice)
           if (is.null(fuente) || !"PerCod" %in% names(fuente)) return(NULL)
           filas <- fuente[which(fuente$PerCod == input$registro), , drop = FALSE]
-          if (unname(.ficha[indice]) == "clientes_comerciales") .clientes_vista(filas) else filas
+          if (unname(.ficha[indice]) == "clientes_comerciales") {
+            pedidos <- operativo()$pedidos
+            return(.clientes_vista(filas, pedidos, .margenes_filtrados(publicaciones(), pedidos)))
+          }
+          .etiquetar_clientes(filas, operativo()$clientes)
         }), output)
       })
     }
 
     if (id == "resumen") {
+      secciones <- .grupos
+      secciones[["Generalidades"]]$comparacion_indicadores <- .vista("Comparación de Indicadores", "mercado")
+      secciones[["Gestión comercial"]]$presupuesto_cero <- .vista("Presupuesto", "meta_provisional")
+      secciones <- append(secciones, list("Productos" = list(
+        analisis_productos = .vista("Análisis de productos", "hechos_productos"))), after = 4L)
+      for (destino in setdiff(names(do.call(c, unname(secciones))), "resumen")) local({
+        tab <- destino
+        observeEvent(input[[paste0("ir_", tab)]], navegar(tab))
+      })
+      output$secciones <- renderUI({
+        div(class = "row", lapply(names(secciones), function(seccion) {
+          bloque <- secciones[[seccion]]
+          filas <- lapply(setdiff(names(bloque), "resumen"), function(tab) {
+            vista <- bloque[[tab]]
+            estado <- switch(vista$fuente, mercado = "Fuente compartida", meta_provisional = "Meta provisional: 0",
+                             registro = "Abrir consulta", .estado_fuente(publicaciones(), vista$fuente))
+            tags$li(class = "d-flex justify-content-between align-items-center py-1",
+                    .boton(session$ns(paste0("ir_", tab)), vista$titulo, "arrow-right"),
+                    tags$small(class = "ml-2 text-muted text-right", estado))
+          })
+          contenido <- tags$ul(class = "list-unstyled mb-0", filas)
+          div(class = "col-12 col-md-6 col-xl-4 mb-3",
+              if (.disponible_api("racafeForms", "racafeCard")) {
+                racafeForms::racafeCard(seccion, contenido, padding = "compact")
+              } else div(class = "crm-panel", h2(seccion), contenido))
+        }))
+      })
       caidas <- reactive({
         pub <- publicaciones()
         corte <- pub$operacional$manifiesto$procedencia$corte
@@ -252,7 +288,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         datos <- .filtrar_operacional(pub, seleccion)$pedidos
         .gestion_caidas(datos, corte, cobertura = TRUE)
       })
-      .tabla_server("caidas", caidas, output)
+      .tabla_server("caidas", reactive(.etiquetar_clientes(caidas(), operativo()$clientes)), output)
       output$caidas_estado <- renderUI({
         d <- caidas()
         if (is.null(d)) return(.nota("Cobertura insuficiente para comparar los dos períodos.", "muted"))
@@ -277,7 +313,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
           div(class = "crm-kpi", span(etiqueta), strong(.formato_cantidad(valores[[etiqueta]])))
         }))
       })
-      fuentes_kpi <- c("Empresas registradas" = "empresas", "Contactos" = "contactos",
+      fuentes_kpi <- c("Contactos" = "contactos",
                        "Prospectos" = "empresas", "Leads" = "empresas",
                        "Clientes históricos" = "clientes_comerciales", "Clientes nuevos" = "primer_pedido_cliente",
                        "Pedidos creados" = "pedidos", "Sacos pedidos" = "pedidos", .fuentes_pendientes)
@@ -317,10 +353,10 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         }))
       }))
     })
-    if (id %in% c("jerarquia", "productos", "tier_admin")) output$administrar <- renderUI({
-      campos <- switch(id, jerarquia = c("PerCod", "Cuenta padre", "Evidencia", "Vigencia"),
+    if (id %in% c("productos", "tier_admin")) output$administrar <- renderUI({
+      campos <- switch(id,
                        productos = c("Código original", "Descripción", "Marca", "Categoría", "Producto", "Vigencia"),
-                       tier_admin = c("Cuenta padre", "Versión de método", "Tier propuesto", "Vigencia"))
+                       tier_admin = c("PerCod", "Versión de método", "Tier propuesto", "Vigencia"))
       div(class = "crm-panel", h2("Propuesta y aprobación"),
           tags$fieldset(class = "crm-form-grid", disabled = NA, lapply(seq_along(campos), function(i) {
             textInput(session$ns(paste0("campo_", i)), campos[i])

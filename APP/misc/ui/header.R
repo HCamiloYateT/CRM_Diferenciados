@@ -46,6 +46,10 @@
                                        `data-toggle` = "dropdown", `aria-expanded` = "false"),
             div(class = "dropdown-menu dropdown-menu-right", .acciones_header_ui()))
   }
+  tareas <- if (corporativo) {
+    racafeModulos::MenuHeaderUI("MenuTareas", icon = shiny::icon("bars-progress"), title = "Tareas pendientes",
+                                min_width = "320px")
+  } else tags$li(class = "dropdown", .boton_header("pendientes_header", "Tareas pendientes", "bars-progress"))
   bs4DashNavbar(title = marca, status = "white", border = FALSE, sidebarIcon = icon("bars"),
                 controlbarIcon = icon("gears"),
                 leftUi = tags$li(class = "dropdown crm-header-identidad",
@@ -53,6 +57,6 @@
                                  actualizar,
                                  uiOutput("acciones_clientes", inline = TRUE),
                                  .boton_header("glosario", "Glosario comercial", "book-open")),
-                rightUi = tagList(indicadores, acciones, tags$li(class = "dropdown",
+                rightUi = tagList(indicadores, tareas, acciones, tags$li(class = "dropdown",
                                   .boton_header("notificaciones", "Notificaciones", "bell"))))
 }

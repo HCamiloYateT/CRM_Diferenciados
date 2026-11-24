@@ -13,7 +13,7 @@
                        .boton("limpiar", "Restablecer filtros", "eraser"),
                        tags$details(tags$summary("Filtros pendientes"), tags$ul(lapply(
                          c("Comercial", "Etapa comercial", "Tipo de comprador", "Estado de muestra",
-                           "Tipo de oportunidad", "Cuenta padre", "Tier", "Categoría y producto homologado"),
+                           "Tipo de oportunidad", "Tier", "Categoría y producto homologado"),
                          tags$li))),
                        h2("Acciones rápidas"),
                        div(class = "crm-acciones-grid", lapply(names(.acciones), function(id) {

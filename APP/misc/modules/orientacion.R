@@ -12,7 +12,7 @@
     "Productos" = paste("Marcas y nombres comerciales independientes, ventas cruzadas y calidad.",
                         "El volumen sin atribución se conserva y las asociaciones requieren revisión comercial."),
     "Muestras" = "Solicitudes, envíos y evaluaciones. El circuito y sus responsables siguen por validar.",
-    "Clientes" = "Directorio y consulta por PerCod. Cuentas padre, tiers y productos homologados están pendientes.",
+    "Clientes" = "Directorio y consulta por PerCod. Cada PerCod corresponde a una cuenta individual.",
     "Pedidos y embarques" = "Creación, compromisos y ejecución efectiva se muestran con sus calendarios propios.",
     "Rentabilidad" = "Margen anticipado y FCC requieren fuentes, unidades y asignaciones verificables.",
     "Potencial" = "El potencial y la penetración requieren denominadores comparables.",
@@ -79,10 +79,16 @@
   ns <- shiny::NS(id)
   div(class = "crm-vista", shiny::h1("Presupuesto"),
       .nota(paste("Ppto provisional de cero para sacos, margen US¢/lb y MNFCC.",
-                  "El cumplimiento queda sin calcular mientras la meta sea cero.")),
-      shiny::numericInput(ns("anio"), "Año", as.integer(format(.HoyProductos(), "%Y")), min = 1900, max = 9999),
+                  "La vista acumulada suma los meses con datos. Una meta de cero no genera porcentaje de cumplimiento.")),
+      div(class = "crm-indicadores-filtros",
+          shiny::numericInput(ns("anio"), "Año", as.integer(format(.HoyProductos(), "%Y")), min = 1900, max = 9999),
+          shiny::checkboxInput(ns("acumulado"), "Vista acumulada", value = TRUE)),
       shiny::uiOutput(ns("resumen")),
-      div(class = "crm-panel", shiny::h2("Ejecución por creación de pedido"), .tabla_ui(ns("mensual"))))
+      bs4Dash::tabsetPanel(tabPanel("Evolución mensual", .tabla_ui(ns("mensual")),
+                                   if (requireNamespace("plotly", quietly = TRUE)) fluidRow(
+                                     column(6, plotly::plotlyOutput(ns("serie_sacos"))),
+                                     column(6, plotly::plotlyOutput(ns("serie_mnfcc"))))),
+                          tabPanel("Presupuesto por cliente", .tabla_ui(ns("clientes")))))
 }
 
 .PresupuestoCeroServer <- function(id, operativo, publicaciones) {
@@ -98,17 +104,52 @@
         if (length(corte)) agrupado[!meses %in% periodo & meses <= format(as.Date(corte), "%Y-%m")] <- 0
         agrupado
       }
+      margen <- .margenes_filtrados(publicaciones(), pedidos)
+      mnfcc <- if (is.null(margen)) rep(NA_real_, 12L) else {
+        .dp_agregar(format(margen$fecha, "%Y-%m"), margen$MNFCC, meses)
+      }
       data.frame(Mes = meses, PptoL = 0, SacosPedidos = real, DiferenciaSacos = real,
-                 PptoMargenUScentLb = 0, PptoMNFCC = 0, Cumplimiento = NA_real_)
+                 PptoMargenUScentLb = 0, PptoMNFCC = 0, MNFCC_COP = mnfcc,
+                 CumplimientoSacos = NA_real_, CumplimientoMNFCC = NA_real_)
     })
     .tabla_server("mensual", mensual, output)
+    .tabla_server("clientes", shiny::reactive({
+      clientes <- operativo()$clientes
+      shiny::req(!is.null(clientes))
+      pedidos <- operativo()$pedidos
+      if (!is.null(pedidos)) pedidos <- pedidos[which(format(pedidos$fecha_creacion, "%Y") == input$anio), ]
+      datos <- .clientes_vista(clientes, pedidos, .margenes_filtrados(publicaciones(), pedidos))
+      datos$PptoL <- rep(0, nrow(datos))
+      datos$PptoMNFCC <- rep(0, nrow(datos))
+      datos$PptoMargenUScentLb <- rep(0, nrow(datos))
+      datos$DiferenciaSacos <- datos$Sacos
+      datos$DiferenciaMNFCC <- datos$MNFCC_COP
+      datos$Cumplimiento <- rep(NA_real_, nrow(datos))
+      datos
+    }), output)
+    if (requireNamespace("plotly", quietly = TRUE)) {
+      serie <- function(campo, titulo) {
+        datos <- mensual()
+        valores <- datos[[campo]]
+        if (isTRUE(input$acumulado)) {
+          observados <- which(is.finite(valores))
+          valores[observados] <- cumsum(valores[observados])
+        }
+        p <- plotly::plot_ly(x = datos$Mes, y = valores, type = "scatter", mode = "lines+markers",
+                             name = "Real", line = list(color = "#DA291C"))
+        p <- plotly::add_trace(p, x = datos$Mes, y = rep(0, nrow(datos)), name = "Ppto")
+        plotly::layout(p, title = titulo, xaxis = list(title = ""), yaxis = list(title = ""))
+      }
+      output$serie_sacos <- plotly::renderPlotly(serie("SacosPedidos", "Presupuesto de sacos"))
+      output$serie_mnfcc <- plotly::renderPlotly(serie("MNFCC_COP", "Presupuesto de MNFCC (COP)"))
+    }
     output$resumen <- shiny::renderUI({
       corte <- publicaciones()$operacional$manifiesto$procedencia$corte
       datos <- mensual()
       meses_al_corte <- if (length(corte)) datos$Mes <= format(as.Date(corte), "%Y-%m") else rep(FALSE, 12L)
       total <- if (any(meses_al_corte)) .dp_suma(datos$SacosPedidos[meses_al_corte]) else NA_real_
       valores <- c("Ppto de sacos" = "0", "Sacos pedidos" = .formato_cantidad(total),
-                   "Cumplimiento" = "No disponible")
+                   "Ppto MNFCC (COP)" = "0", "Cumplimiento con meta cero" = "No disponible")
       div(class = "crm-kpis", lapply(seq_along(valores), function(i) {
         div(class = "crm-kpi", span(names(valores)[i]), strong(valores[i]))
       }))
