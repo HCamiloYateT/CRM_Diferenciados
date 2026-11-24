@@ -1,36 +1,3 @@
-# Identidad y acciones rápidas ----
-
-.acciones <- list(contacto = list(titulo = "Crear contacto"), gestion = list(titulo = "Nueva gestión"),
-                   oportunidad = list(titulo = "Nueva oportunidad"), muestra = list(titulo = "Nueva muestra"),
-                   tarea = list(titulo = "Tareas y notas"))
-
-.boton_header <- function(id, titulo, simbolo) {
-  boton <- if (.disponible_api("racafeForms", "racafeButton")) {
-    racafeForms::racafeButton(id, NULL, icon = simbolo, title = titulo, size = "xxs", variant = "secondary")
-  } else {
-    shiny::actionButton(id, NULL, icon = shiny::icon(simbolo), title = titulo, class = "btn-sm btn-secondary")
-  }
-  shiny::tagAppendAttributes(boton, `aria-label` = titulo)
-}
-
-.paleta_header_ui <- function() {
-  boton <- if (.disponible_api("racafeForms", "racafeButton")) {
-    racafeForms::racafeButton("escalas_color", NULL, icon = "palette", title = "Escalas de color",
-                              variant = "secondary", size = "xs")
-  } else .boton_header("escalas_color", "Escalas de color", "palette")
-  escala <- function(paleta) {
-    lapply(names(paleta), function(valor) {
-      div(tags$span(class = "kb-scale-swatch", style = paste0("background:", paleta[[valor]])), valor)
-    })
-  }
-  div(class = "dropdown",
-      shiny::tagAppendAttributes(boton, `data-toggle` = "dropdown", `aria-haspopup` = "true",
-                                 `aria-expanded` = "false", `aria-label` = "Escalas de color"),
-      div(class = "dropdown-menu kb-scale-menu", tags$strong("ETAPA DE LA ENTIDAD"),
-          escala(.colores_etapa_crm), tags$hr(), tags$strong("PRIORIDAD DE TAREAS"),
-          escala(.colores_prioridad_crm)))
-}
-
 # Header ----
 
 header <- bs4DashNavbar(
@@ -55,7 +22,27 @@ header <- bs4DashNavbar(
       title = "Descargar clientes", `aria-label` = "Descargar clientes"
     ),
     .boton_header("glosario", "Glosario comercial", "book-open"),
-    .paleta_header_ui()
+    div(class = "dropdown",
+        shiny::tagAppendAttributes(
+          if (.disponible_api("racafeForms", "racafeButton")) {
+            racafeForms::racafeButton("escalas_color", NULL, icon = "palette", title = "Escalas de color",
+                                      variant = "secondary", size = "xs")
+          } else .boton_header("escalas_color", "Escalas de color", "palette"),
+          `data-toggle` = "dropdown", `aria-haspopup` = "true", `aria-expanded` = "false",
+          `aria-label` = "Escalas de color"
+        ),
+        div(class = "dropdown-menu kb-scale-menu",
+            tags$strong("ETAPA DE LA ENTIDAD"),
+            lapply(names(.colores_etapa_crm), function(etapa) {
+              div(tags$span(class = "kb-scale-swatch", style = paste0("background:", .colores_etapa_crm[[etapa]])),
+                  etapa)
+            }),
+            tags$hr(),
+            tags$strong("PRIORIDAD DE TAREAS"),
+            lapply(names(.colores_prioridad_crm), function(prioridad) {
+              div(tags$span(class = "kb-scale-swatch",
+                            style = paste0("background:", .colores_prioridad_crm[[prioridad]])), prioridad)
+            })))
   )),
   rightUi = tagList(
     if (.MenuIndicadoresCorporativo()) {
