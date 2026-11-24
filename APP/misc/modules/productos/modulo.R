@@ -25,7 +25,7 @@ ProductosUI <- function(id) {
                                              "Frecuencia" = "Frecuencia", "Lotes" = "Lotes",
                                              "Margen total (COP)" = "MargenCOP", "MNFCC (COP/kg)" = "MNFCC"))),
              shiny::uiOutput(ns("estado")),
-             shiny::tabsetPanel(
+             bs4Dash::tabsetPanel(
                panel("Tablero de ejecución", shiny::tagList(shiny::uiOutput(ns("kpis")), shiny::h2("Ranking y Pareto"),
                      shiny::plotOutput(ns("pareto"), height = "500px"), .tabla_ui(ns("ranking")),
                      shiny::h2("Evolución mensual"), shiny::plotOutput(ns("serie"), height = "500px"),
@@ -44,13 +44,14 @@ ProductosUI <- function(id) {
                      shiny::checkboxInput(ns("estadistica"), "Fisher con ajuste BH", TRUE)),
                  .boton(ns("calcular"), "Calcular Market Basket", "calculator"), shiny::uiOutput(ns("evidencia")),
                  shiny::h2("Reglas de asociación"), .tabla_ui(ns("reglas")),
-                 shiny::tabsetPanel(panel("Ítems", .tabla_ui(ns("items"))),
+                 bs4Dash::tabsetPanel(panel("Ítems", .tabla_ui(ns("items"))),
                                     panel("Conjuntos", .tabla_ui(ns("conjuntos"))),
                                     panel("Combinaciones",
                                           shiny::tagList(shiny::plotOutput(ns("matriz"), height = "500px"),
                                                          .tabla_ui(ns("pares")))),
                                     panel("Tamaños de cesta", .tabla_ui(ns("tamanos")))),
-                 shiny::h2("Recomendaciones de cross-selling"), shiny::uiOutput(ns("seleccionar_cliente")),
+                 shiny::h2("Recomendaciones de cross-selling"),
+                 .selector_clientes(ns("cliente_basket"), "Cliente para recomendaciones"),
                  .tabla_ui(ns("recomendaciones")), shiny::uiOutput(ns("aceptacion")))),
                panel("Relaciones comerciales", shiny::tagList(shiny::h2("Cruce observado marca × nombre comercial"),
                      .tabla_ui(ns("relaciones")), shiny::h2("Operaciones observadas"),
@@ -243,7 +244,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
         resultado$items$Nombre <- mapa$nombre[match(resultado$items$Item, mapa$item)]
         resultado$periodo <- periodo()
         resultado$dimension <- input$dimension
-        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo")]
+        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador")]
         resultado$comercial <- input$comercial
         resultado$parametros <- c(input$cesta, input$soporte, input$minimo, input$longitud,
                                   input$confianza, input$lift, input$temporal, input$estadistica)
@@ -256,7 +257,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       if (inherits(a, "error")) return(a)
       if (!identical(a$dimension, input$dimension) || !identical(a$periodo, periodo()) ||
           !identical(a$generacion, publicaciones()$operacional$manifiesto$id) ||
-          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo")]) ||
+          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador")]) ||
           !identical(a$comercial, input$comercial) ||
           !identical(a$parametros, c(input$cesta, input$soporte, input$minimo, input$longitud,
                                     input$confianza, input$lift, input$temporal, input$estadistica))) {
@@ -380,12 +381,10 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       opciones <- stats::setNames(c$item, paste(c$CiaCod, c$codigo, c$nombre, sep = " · "))
       shiny::selectizeInput(session$ns("item"), "Consultar compradores", c("Seleccione…" = "", opciones))
     })
-    output$seleccionar_cliente <- shiny::renderUI({
-      d <- publicaciones()$operacional$tablas$clientes
-      if (is.null(d) || !nrow(d)) return(NULL)
-      shiny::selectizeInput(session$ns("cliente_basket"), "Cliente para recomendaciones",
-                             c("Seleccione…" = "", stats::setNames(d$PerCod, paste(d$PerCod, d$PerRazSoc))))
-    })
+    shiny::observeEvent(publicaciones()$operacional, {
+      clientes <- .tabla_fuente(publicaciones(), "clientes")
+      .actualizar_selector_clientes(session, "cliente_basket", clientes, input$cliente_basket)
+    }, ignoreNULL = FALSE)
     output$aceptacion <- shiny::renderUI({
       r <- recomendaciones()
       if (is.null(r) || !nrow(r)) return(NULL)

@@ -1,45 +1,8 @@
 # Identidad y acciones rápidas ----
 
-.acciones <- list(
-  contacto = list(titulo = "Crear contacto", campos = c("Empresa", "Nombre del contacto", "Correo", "Cargo",
-                                                         "País", "Tipo de comprador", "Origen")),
-  gestion = list(titulo = "Nueva gestión", campos = c("Empresa o PerCod", "Contacto", "Tipo de gestión",
-                                                       "Fecha", "Responsable", "Resultado", "Observaciones")),
-  oportunidad = list(titulo = "Nueva oportunidad", campos = c("Empresa o PerCod", "Tipo de oportunidad", "Criterio",
-                                                                "Origen", "Responsable", "Observaciones")),
-  muestra = list(titulo = "Nueva muestra", campos = c("Empresa o PerCod", "Contacto", "Descripción original",
-                                                       "Origen", "Requisitos", "Fecha de solicitud", "Courier", "Guía",
-                                                       "Fecha de envío", "Resultado de evaluación", "Observaciones",
-                                                       "Responsable")),
-  tarea = list(titulo = "Tareas y notas", campos = c("Empresa o PerCod", "Contacto", "Oportunidad", "Prioridad",
-                                                      "Vencimiento", "Responsable", "Nota"))
-)
-
-.formulario_accion <- function(accion) {
-  configuracion <- .acciones[[accion]]
-  controles <- lapply(seq_along(configuracion$campos), function(i) {
-    etiqueta <- configuracion$campos[i]
-    id <- paste("captura", accion, i, sep = "_")
-    if (etiqueta %in% c("Observaciones", "Criterio", "Nota", "Requisitos")) {
-      return(textAreaInput(id, etiqueta, rows = 2L))
-    }
-    if (startsWith(etiqueta, "Fecha") || etiqueta == "Vencimiento") {
-      return(div(class = "form-group", tags$label(`for` = id, etiqueta),
-                 tags$input(id = id, type = "date", class = "form-control")))
-    }
-    if (etiqueta == "Tipo de oportunidad") {
-      return(selectInput(id, etiqueta, c("Seleccione…" = "", "Adquisición", "Cross-selling", "Up-selling")))
-    }
-    textInput(id, etiqueta)
-  })
-  formulario <- tags$fieldset(disabled = NA, class = "crm-form-grid", controles)
-  if (.disponible_api("racafeForms", "racafeForm")) {
-    formulario <- racafeForms::racafeForm(formulario, variant = "plain")
-  }
-  modalDialog(title = configuracion$titulo, size = "l", easyClose = TRUE,
-              .nota("Captura pendiente de servicio de escritura, permisos y validación del flujo.", "warning"),
-              formulario, footer = tagList(.bloqueado("Guardar", "Acción aún no disponible"), modalButton("Cerrar")))
-}
+.acciones <- list(contacto = list(titulo = "Crear contacto"), gestion = list(titulo = "Nueva gestión"),
+                   oportunidad = list(titulo = "Nueva oportunidad"), muestra = list(titulo = "Nueva muestra"),
+                   tarea = list(titulo = "Tareas y notas"))
 
 .boton_header <- function(id, titulo, simbolo) {
   boton <- if (.disponible_api("racafeForms", "racafeButton")) {
@@ -83,6 +46,10 @@
                                        `data-toggle` = "dropdown", `aria-expanded` = "false"),
             div(class = "dropdown-menu dropdown-menu-right", .acciones_header_ui()))
   }
+  tareas <- if (corporativo) {
+    racafeModulos::MenuHeaderUI("MenuTareas", icon = shiny::icon("bars-progress"), title = "Tareas pendientes",
+                                min_width = "320px")
+  } else tags$li(class = "dropdown", .boton_header("pendientes_header", "Tareas pendientes", "bars-progress"))
   bs4DashNavbar(title = marca, status = "white", border = FALSE, sidebarIcon = icon("bars"),
                 controlbarIcon = icon("gears"),
                 leftUi = tags$li(class = "dropdown crm-header-identidad",
@@ -90,6 +57,6 @@
                                  actualizar,
                                  uiOutput("acciones_clientes", inline = TRUE),
                                  .boton_header("glosario", "Glosario comercial", "book-open")),
-                rightUi = tagList(indicadores, acciones, tags$li(class = "dropdown",
+                rightUi = tagList(indicadores, tareas, acciones, tags$li(class = "dropdown",
                                   .boton_header("notificaciones", "Notificaciones", "bell"))))
 }

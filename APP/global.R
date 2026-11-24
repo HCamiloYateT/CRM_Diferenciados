@@ -22,7 +22,8 @@ if (nzchar(.compartido_local)) {
 source(file.path(.raiz_crm, "DataPrep.R"), local = TRUE)
 for (.archivo in c("config/vistas.R", "datos/publicacion_ui.R",
                    "ui/componentes.R", "modules/vista.R", "modules/productos/datos.R", "modules/productos/cestas.R",
-                   "modules/productos/modulo.R", "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
+                   "modules/productos/modulo.R", "modules/gestion/datos.R", "modules/gestion/modulo.R",
+                   "modules/operacion/constantes.R", "modules/operacion/funciones.R", "modules/operacion/modulo.R", "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R", "ui/header.R", "ui/sidebar.R", "ui/controlbar.R",
                    "ui/body.R", "ui/footer.R", "ui/preloader.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
