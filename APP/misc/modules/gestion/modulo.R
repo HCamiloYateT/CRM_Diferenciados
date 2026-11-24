@@ -1,6 +1,6 @@
 # Agenda, oportunidades, ofertas, muestras y contactos ----
 
-.gestion_vistas <- c(contactos = "contacto", actividades = "tarea", tareas = "tarea",
+.gestion_vistas <- c(contactos = "contacto", actividades = "tarea", tareas = "tarea", notas = "tarea",
                      oportunidades = "oportunidad", negociaciones = "oferta", muestras = "muestra",
                      solicitudes = "muestra", envios = "muestra", evaluaciones = "muestra", seguimiento = "muestra",
                      indicadores = "muestra")
@@ -17,7 +17,8 @@ GestionUI <- function(id, titulo) {
           if (unname(.gestion_vistas[id]) %in% c("oportunidad", "muestra")) {
             .boton(ns("proxima"), "Próxima acción", "calendar-check")
           }),
-      uiOutput(ns("seleccion")), uiOutput(ns("estado")), .tabla_ui(ns("tabla")))
+      uiOutput(ns("seleccion")), uiOutput(ns("estado")),
+      if (id %in% c("notas", "tareas")) uiOutput(ns("kanban")) else .tabla_ui(ns("tabla")))
 }
 
 .gestion_agenda <- function(tareas, hoy = .HoyProductos()) {
@@ -46,8 +47,13 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       if (nzchar(input$cliente %||% "")) d <- d[d$PerCod == input$cliente, , drop = FALSE]
       if (tipo == "tarea") {
         d <- .gestion_agenda(d)
+        prioridades <- t$tarea_prioridad
+        d$prioridad <- prioridades$prioridad[match(d$tarea_id, prioridades$tarea_id)]
+        if (is.null(d$prioridad)) d$prioridad <- rep(NA_character_, nrow(d))
+        d$prioridad[is.na(d$prioridad)] <- "MEDIA"
+        if (id == "notas") d <- d[d$tipo == "NOTA", , drop = FALSE]
         if (id == "actividades") d <- d[d$estado == "REALIZADA", , drop = FALSE]
-        if (id == "tareas") d <- d[d$estado == "PENDIENTE", , drop = FALSE]
+        if (id == "tareas") d <- d[d$estado == "PENDIENTE" & d$tipo != "NOTA", , drop = FALSE]
       }
       if (id == "solicitudes") d <- d[d$estado %in% c("SOLICITADA", "EN_PREPARACION"), , drop = FALSE]
       if (id == "envios") d <- d[d$estado %in% c("ENVIADA", "PENDIENTE_RESPUESTA"), , drop = FALSE]
@@ -63,6 +69,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       d <- datos()
       if (!nrow(d)) return(NULL)
       etiqueta <- intersect(c("asunto", "producto", "nombre"), names(d))[1L]
+      d <- .etiquetar_clientes(d, operativo()$clientes)
       opciones <- stats::setNames(d[[llave]], paste(d$PerCod, d[[etiqueta]], d[[llave]], sep = " · "))
       selectInput(session$ns("registro"), "Registro", c("Seleccione…" = "", opciones),
                   selected = isolate(input$registro))
@@ -73,7 +80,32 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       if (!nrow(datos())) return(.nota("Sin registros para los filtros activos.", "empty"))
       NULL
     })
-    .tabla_server("tabla", datos, output)
+    if (id %in% c("notas", "tareas")) {
+      output$kanban <- renderUI({
+        d <- .etiquetar_clientes(datos(), operativo()$clientes)
+        if (!nrow(d)) return(NULL)
+        prioridades <- c("ALTA", "MEDIA", "BAJA")
+        columnas <- lapply(prioridades, function(prioridad) {
+          filas <- d[which(d$prioridad == prioridad), , drop = FALSE]
+          tarjetas <- lapply(seq_len(nrow(filas)), function(i) {
+            cuerpo <- div(class = "crm-panel", tags$p(filas$PerCod[i]), tags$p(filas$resultado[i]),
+                           tags$p(as.character(filas$seguimiento[i])))
+            if (.disponible_api("racafeModulos", "TarjetaKanbanUI")) {
+              return(racafeModulos::TarjetaKanbanUI(filas$asunto[i], cuerpo = cuerpo))
+            }
+            div(class = "crm-panel", strong(filas$asunto[i]), cuerpo)
+          })
+          if (.disponible_api("racafeModulos", "ColumnaKanbanUI")) {
+            return(racafeModulos::ColumnaKanbanUI(prioridad, tarjetas, nrow(filas)))
+          }
+          div(class = "crm-panel", h2(prioridad), tarjetas)
+        })
+        if (.disponible_api("racafeModulos", "TableroKanbanUI")) {
+          return(do.call(racafeModulos::TableroKanbanUI, columnas))
+        }
+        div(class = "crm-kpis", columnas)
+      })
+    } else .tabla_server("tabla", reactive(.etiquetar_clientes(datos(), operativo()$clientes)), output)
     observeEvent(input$nuevo, abrir(tipo, cliente = input$cliente, vista = id))
     observeEvent(input$proxima, {
       d <- datos()
@@ -130,7 +162,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     req(!is.null(ctx))
     campos <- c("estado", "pedido_id", "motivo", "oportunidad_id", "muestra_id", "tipo", "asunto", "producto",
                 "sacos", "embarque", "valor", "unidad", "condiciones", "fecha", "calidad", "resultado",
-                "seguimiento", "correo", "telefono")
+                "seguimiento", "correo", "telefono", "prioridad")
     valores <- stats::setNames(lapply(campos, function(x) input[[paste0("gestion_", x)]]), campos)
     valores$PerCod <- cliente_elegido()
     if (!is.null(ctx$origen) && !identical(valores$PerCod, ctx$cliente)) {
@@ -167,6 +199,10 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       req(nrow(fila) == 1L)
       cliente <- fila$PerCod
       valores <- as.list(fila)
+      if (tipo == "tarea") {
+        prioridad <- t$tarea_prioridad
+        valores$prioridad <- prioridad$prioridad[match(origen, prioridad$tarea_id)]
+      }
       if (tipo == "contacto") {
         valores$asunto <- fila$nombre
         valores$calidad <- fila$preferencia_calidad
@@ -215,7 +251,9 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
         fecha("fecha", "Fecha de solicitud", hoy), texto("resultado", "Respuesta o resultado"),
         vinculo("pedido_id", "Pedido vinculado")),
       tarea = tagList(texto("asunto", "Asunto"),
-        elegir("tipo", "Tipo", c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO")),
+        elegir("tipo", "Tipo", c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO", "NOTA"),
+               if (identical(vista, "notas")) "NOTA" else "LLAMADA"),
+        elegir("prioridad", "Prioridad", c("ALTA", "MEDIA", "BAJA"), "MEDIA"),
         fecha("fecha", "Fecha de actividad", hoy), fecha("seguimiento", "Próximo seguimiento"),
         texto("resultado", "Resultado"), vinculo("oportunidad_id", "Oportunidad"), vinculo("muestra_id", "Muestra")))
     estado <- .gestion_estados[[tipo]]
@@ -223,7 +261,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     contexto(list(tipo = tipo, origen = origen, cliente = cliente, valores = valores, esperado = esperado))
     cuerpo <- div(class = "crm-form-grid", .selector_clientes("gestion_cliente", "Cliente"), controles,
                  if (length(estado)) elegir("estado", "Estado", estado,
-                                           if (identical(vista, "actividades")) "REALIZADA" else estado[[1L]]),
+                                           if (isTRUE(vista %in% c("actividades", "notas"))) "REALIZADA" else estado[[1L]]),
                  textInput("gestion_motivo", "Motivo del registro"))
     if (.disponible_api("racafeForms", "racafeForm")) cuerpo <- racafeForms::racafeForm(cuerpo, variant = "plain")
     showModal(modalDialog(title = if (is.null(origen)) "Registrar gestión" else "Actualizar gestión",

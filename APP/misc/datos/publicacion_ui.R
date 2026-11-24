@@ -67,13 +67,15 @@
     if (length(filtros$cliente)) clientes <- clientes[clientes$PerCod %in% filtros$cliente, , drop = FALSE]
     if (nzchar(filtros$percod)) clientes <- clientes[clientes$PerCod == filtros$percod, , drop = FALSE]
   }
-  seleccion_pedido <- length(filtros$periodo) == 2L || length(filtros$estado) || length(filtros$destino)
+  seleccion_pedido <- length(filtros$periodo) == 2L || length(filtros$estado) ||
+    length(filtros$destino) || length(filtros$creador)
   if (!is.null(pedidos)) {
     if (!is.null(clientes)) pedidos <- pedidos[pedidos$PerCod %in% clientes$PerCod, , drop = FALSE]
     if (length(filtros$periodo) == 2L) {
       fechas <- pedidos$fecha_creacion
       pedidos <- pedidos[which(fechas >= filtros$periodo[1L] & fechas <= filtros$periodo[2L]), , drop = FALSE]
     }
+    if (length(filtros$creador)) pedidos <- pedidos[pedidos$PdcUsu %in% filtros$creador, , drop = FALSE]
     if (length(filtros$estado)) pedidos <- pedidos[pedidos$estado_original %in% filtros$estado, , drop = FALSE]
     if (length(filtros$destino)) {
       destino <- lineas$pedido_id[lineas$PaiCodDtn %in% filtros$destino]
@@ -103,6 +105,7 @@
 .vista_datos <- function(publicaciones, operativo, nombre, filtros) {
   if (nombre == "registro") return(.registro_fuentes(publicaciones))
   if (nombre %in% names(operativo)) return(operativo[[nombre]])
+  if (nombre == "margenes") return(.margenes_filtrados(publicaciones, operativo$pedidos))
   datos <- .tabla_fuente(publicaciones, nombre)
   if (is.null(datos)) return(NULL)
   if ("PerCod" %in% names(datos) && !is.null(operativo$clientes)) {
@@ -121,4 +124,10 @@
     }
   }
   datos
+}
+
+.margenes_filtrados <- function(publicaciones, pedidos) {
+  d <- .tabla_fuente(publicaciones, "margenes")
+  if (is.null(d) || is.null(pedidos)) return(NULL)
+  d[d$pedido_id %in% pedidos$pedido_id, , drop = FALSE]
 }

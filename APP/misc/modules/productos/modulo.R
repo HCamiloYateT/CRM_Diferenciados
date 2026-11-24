@@ -25,7 +25,7 @@ ProductosUI <- function(id) {
                                              "Frecuencia" = "Frecuencia", "Lotes" = "Lotes",
                                              "Margen total (COP)" = "MargenCOP", "MNFCC (COP/kg)" = "MNFCC"))),
              shiny::uiOutput(ns("estado")),
-             shiny::tabsetPanel(
+             bs4Dash::tabsetPanel(
                panel("Tablero de ejecución", shiny::tagList(shiny::uiOutput(ns("kpis")), shiny::h2("Ranking y Pareto"),
                      shiny::plotOutput(ns("pareto"), height = "500px"), .tabla_ui(ns("ranking")),
                      shiny::h2("Evolución mensual"), shiny::plotOutput(ns("serie"), height = "500px"),
@@ -44,7 +44,7 @@ ProductosUI <- function(id) {
                      shiny::checkboxInput(ns("estadistica"), "Fisher con ajuste BH", TRUE)),
                  .boton(ns("calcular"), "Calcular Market Basket", "calculator"), shiny::uiOutput(ns("evidencia")),
                  shiny::h2("Reglas de asociación"), .tabla_ui(ns("reglas")),
-                 shiny::tabsetPanel(panel("Ítems", .tabla_ui(ns("items"))),
+                 bs4Dash::tabsetPanel(panel("Ítems", .tabla_ui(ns("items"))),
                                     panel("Conjuntos", .tabla_ui(ns("conjuntos"))),
                                     panel("Combinaciones",
                                           shiny::tagList(shiny::plotOutput(ns("matriz"), height = "500px"),
@@ -244,7 +244,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
         resultado$items$Nombre <- mapa$nombre[match(resultado$items$Item, mapa$item)]
         resultado$periodo <- periodo()
         resultado$dimension <- input$dimension
-        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo")]
+        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador")]
         resultado$comercial <- input$comercial
         resultado$parametros <- c(input$cesta, input$soporte, input$minimo, input$longitud,
                                   input$confianza, input$lift, input$temporal, input$estadistica)
@@ -257,7 +257,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       if (inherits(a, "error")) return(a)
       if (!identical(a$dimension, input$dimension) || !identical(a$periodo, periodo()) ||
           !identical(a$generacion, publicaciones()$operacional$manifiesto$id) ||
-          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo")]) ||
+          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador")]) ||
           !identical(a$comercial, input$comercial) ||
           !identical(a$parametros, c(input$cesta, input$soporte, input$minimo, input$longitud,
                                     input$confianza, input$lift, input$temporal, input$estadistica))) {
