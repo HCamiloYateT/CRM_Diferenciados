@@ -14,19 +14,15 @@
   })
 
   output$descarga_clientes <- downloadHandler(
-    filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".csv"),
+    filename = function() paste0("clientes-diferenciados-", Sys.Date(), ".xlsx"),
+    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     content = function(ruta) {
       clientes <- .clientes_vista(operativo()$clientes, operativo()$pedidos,
                                  .margenes_filtrados(publicaciones(), operativo()$pedidos))
       if (is.null(clientes)) {
         clientes <- .clientes_vista(data.frame(PerCod = character(), PerRazSoc = character()))
       }
-      # Los nombres de origen pueden comenzar por caracteres que una hoja de cálculo ejecutaría.
-      clientes[] <- lapply(clientes, function(x) {
-        if (!is.character(x)) return(x)
-        ifelse(!is.na(x) & grepl("^[[:space:]]*[=+@-]", x), paste0("'", x), x)
-      })
-      utils::write.csv(clientes, ruta, row.names = FALSE, na = "", fileEncoding = "UTF-8")
+      writexl::write_xlsx(list(Clientes = clientes), path = ruta)
     }
   )
 

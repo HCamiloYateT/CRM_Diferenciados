@@ -42,7 +42,7 @@
   descarga <- if (.disponible_api("racafeForms", "racafeButtonDownload")) {
     racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "users",
                                       size = "xxs", variant = "secondary")
-  } else downloadButton("descarga_clientes", "CSV", class = "btn-sm btn-outline-secondary")
+  } else downloadButton("descarga_clientes", "Excel", class = "btn-sm btn-outline-secondary")
   descarga <- shiny::tagAppendAttributes(descarga, title = "Descargar clientes", `aria-label` = "Descargar clientes")
   indicadores <- if (.MenuIndicadoresCorporativo()) {
     racafeModulos::MenuHeaderUI("MenuIndicadores", icon = shiny::icon("arrow-trend-up"),
