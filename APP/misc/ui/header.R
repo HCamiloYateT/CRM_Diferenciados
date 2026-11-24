@@ -31,30 +31,40 @@
           escala(.colores_prioridad_crm)))
 }
 
-.header_crm <- function() {
-  marca <- dashboardBrand(title = .titulo, href = "https://analitica.racafe.com/PortalAnalitica/", image = .logo_crm)
-  actualizar <- if (.disponible_api("racafeShiny", "Boton")) {
-    shiny::tagAppendAttributes(racafeShiny::Boton("actualizar", label = NULL, icono = "sync",
-                                                 size = "xxs", title = "Actualizar corte operacional",
-                                                 color_fondo = "#6c757d", color_hover = "#DA291C"),
-                               `aria-label` = "Actualizar corte operacional")
-  } else .boton_header("actualizar", "Actualizar corte operacional", "sync")
-  descarga <- if (.disponible_api("racafeForms", "racafeButtonDownload")) {
-    racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "users",
-                                      size = "xxs", variant = "secondary")
-  } else downloadButton("descarga_clientes", NULL, icon = icon("users"), class = "btn-sm btn-secondary")
-  descarga <- shiny::tagAppendAttributes(descarga, title = "Descargar clientes", `aria-label` = "Descargar clientes")
-  indicadores <- if (.MenuIndicadoresCorporativo()) {
-    racafeModulos::MenuHeaderUI("MenuIndicadores", icon = shiny::icon("arrow-trend-up"),
-                                min_width = "400px", title = "Indicadores")
-  } else tags$li(class = "nav-item dropdown", .boton_header("abrir_indicadores", "Indicadores", "arrow-trend-up"))
-  seguimiento <- lapply(names(.menus_seguimiento_header), function(id) {
-    .SeguimientoHeaderUI(id, .menus_seguimiento_header[[id]])
-  })
-  bs4DashNavbar(status = "white", border = FALSE, sidebarIcon = icon("bars"), title = marca,
-                controlbarIcon = icon("gears"),
-                leftUi = tags$li(class = "dropdown crm-header-identidad", uiOutput("identidad_header", inline = TRUE),
-                                 actualizar, descarga, .boton_header("glosario", "Glosario comercial", "book-open"),
-                                 .paleta_header_ui()),
-                rightUi = do.call(tagList, c(list(indicadores), seguimiento)))
-}
+# Header ----
+
+header <- bs4DashNavbar(
+  status = "white", border = FALSE, sidebarIcon = icon("bars"),
+  title = dashboardBrand(title = .titulo, href = "https://analitica.racafe.com/PortalAnalitica/",
+                         image = .logo_crm),
+  controlbarIcon = icon("gears"),
+  leftUi = tagList(tags$li(
+    class = "dropdown crm-header-identidad",
+    tags$span(uiOutput("identidad_header", inline = TRUE)),
+    if (.disponible_api("racafeShiny", "Boton")) {
+      shiny::tagAppendAttributes(racafeShiny::Boton("actualizar", label = NULL, icono = "sync", size = "xxs",
+                                                   title = "Actualizar corte operacional", color_fondo = "#6c757d",
+                                                   color_hover = "#DA291C"),
+                                 `aria-label` = "Actualizar corte operacional")
+    } else .boton_header("actualizar", "Actualizar corte operacional", "sync"),
+    shiny::tagAppendAttributes(
+      if (.disponible_api("racafeForms", "racafeButtonDownload")) {
+        racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "users",
+                                          size = "xxs", variant = "secondary")
+      } else downloadButton("descarga_clientes", NULL, icon = icon("users"), class = "btn-sm btn-secondary"),
+      title = "Descargar clientes", `aria-label` = "Descargar clientes"
+    ),
+    .boton_header("glosario", "Glosario comercial", "book-open"),
+    .paleta_header_ui()
+  )),
+  rightUi = tagList(
+    if (.MenuIndicadoresCorporativo()) {
+      racafeModulos::MenuHeaderUI("MenuIndicadores", icon = icon("arrow-trend-up"),
+                                  min_width = "400px", title = "Indicadores")
+    } else {
+      tags$li(class = "nav-item dropdown", .boton_header("abrir_indicadores", "Indicadores", "arrow-trend-up"))
+    },
+    .SeguimientoHeaderUI("MenuNotas", .menus_seguimiento_header$MenuNotas),
+    .SeguimientoHeaderUI("MenuTareas", .menus_seguimiento_header$MenuTareas)
+  )
+)
