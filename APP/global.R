@@ -52,7 +52,7 @@ for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publica
                    "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R",
                    "modules/encabezado/00_header.R", "modules/encabezado/01_tabla_indicadores.R",
-                   "modules/encabezado/02_notificaciones_tareas.R")) {
+                   "modules/encabezado/02_notificaciones_tareas.R", "modules/controlbar/01_filtros.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
 }
 
