@@ -25,12 +25,11 @@ server <- function(input, output, session) {
     }
     embarque <- NULL
     if (identical(input$embarque_todos, FALSE)) {
-      meses <- c(input$embarque_desde, input$embarque_hasta)
-      if (length(meses) != 2L || anyNA(meses) ||
-          any(!grepl("^[1-9][0-9]{3}-(0[1-9]|1[0-2])$", meses)) || meses[1L] > meses[2L]) {
+      fechas <- .dp_fecha(as.character(c(input$embarque_desde, input$embarque_hasta)))
+      limites <- as.Date(format(fechas, "%Y-%m-01"))
+      if (length(limites) != 2L || anyNA(limites) || limites[1L] > limites[2L]) {
         return(showNotification("Seleccione un rango válido de meses de embarque.", type = "warning"))
       }
-      limites <- as.Date(paste0(meses, "-01"))
       embarque <- format(seq(limites[1L], limites[2L], by = "month"), "%Y-%m")
     }
     filtros(list(periodo = if (limitar_creacion) periodo, embarque = embarque,
@@ -59,15 +58,14 @@ server <- function(input, output, session) {
   ## Controlbar ----
   output$rango_embarque <- renderUI({
     pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-    meses <- sort(unique(na.omit(as.character(pedidos$periodo_cabecera))))
-    opciones <- setNames(meses, .formato_fecha_crm(meses, mes = TRUE))
-    desde <- intersect(isolate(input$embarque_desde), meses)
-    hasta <- intersect(isolate(input$embarque_hasta), meses)
+    meses <- sort(unique(na.omit(pedidos$periodo_cabecera)))
+    minimo <- if (length(meses)) as.Date(paste0(meses[1L], "-01"))
+    maximo <- if (length(meses)) as.Date(paste0(tail(meses, 1L), "-01"))
+    desde <- isolate(input$embarque_desde) %||% minimo %||% .HoyProductos()
+    hasta <- isolate(input$embarque_hasta) %||% maximo %||% .HoyProductos()
     racafeForms::racafeFormRow(
-      racafeForms::racafeInputSelect("embarque_desde", "Embarque desde", opciones,
-                                    selected = head(c(desde, meses), 1L), empty = FALSE),
-      racafeForms::racafeInputSelect("embarque_hasta", "Embarque hasta", opciones,
-                                    selected = head(c(hasta, rev(meses)), 1L), empty = FALSE),
+      racafeForms::racafeInputMonth("embarque_desde", "Embarque desde", value = desde, min = minimo, max = maximo),
+      racafeForms::racafeInputMonth("embarque_hasta", "Embarque hasta", value = hasta, min = minimo, max = maximo),
       responsive = "fixed"
     )
   })
