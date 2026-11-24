@@ -4,32 +4,7 @@ controlbar <- bs4DashControlbar(
   id = "controlbar", skin = "light", pinned = NULL, overlay = FALSE, width = "450px",
   controlbarMenu(
     id = "controlbarMenu", type = "tabs",
-    controlbarItem(
-      "Filtros",
-      racafeForms::racafeForm(
-        racafeForms::racafeFormGroup(
-          racafeForms::racafeInputDateRange("periodo", "Fecha de creación del pedido"),
-          racafeForms::racafeInputSwitch("creacion_todas", "Todas", value = TRUE)
-        ),
-        racafeForms::racafeFormGroup(
-          uiOutput("rango_embarque"),
-          racafeForms::racafeInputSwitch("embarque_todos", "Todos", value = TRUE)
-        ),
-        racafeForms::racafeFormGroup(
-          uiOutput("creador_pedido"),
-          racafeForms::racafeFormRow(
-            racafeForms::racafeInputSelect("filtro_segmento", "Segmento", c("Pendiente" = ""), disabled = TRUE),
-            racafeForms::racafeInputSelect("filtro_categoria", "Categoría", c("Pendiente" = ""), disabled = TRUE),
-            responsive = "fixed"
-          ),
-          racafeForms::racafeInputSelect("filtro_producto", "Producto", c("Pendiente" = ""), disabled = TRUE)
-        ),
-        racafeForms::racafeFormFooter(
-          racafeForms::racafeButton("aplicar_filtros", "Aplicar filtros", icon = "check", variant = "primary")
-        ),
-        size = "compact", variant = "plain"
-      )
-    ),
+    controlbarItem("Filtros", FiltrosUI("Filtros")),
     controlbarItem(
       "Tareas y notas",
       div(class = "crm-control",
