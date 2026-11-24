@@ -1,9 +1,5 @@
 # Presentación compartida ----
 
-.MenuIndicadoresCorporativo <- function() {
-  .disponible_api("racafeModulos", "MenuHeaderUI") && .disponible_api("racafeModulos", "MenuHeaderServer")
-}
-
 .IndicadoresGT <- function(funcion) {
   .disponible_api("racafeShiny", funcion) && requireNamespace("gt", quietly = TRUE)
 }
@@ -49,78 +45,6 @@
     }
   }
   tabla
-}
-
-# Menú del encabezado ----
-
-TablaIndicadoresUI <- function(id) {
-  ns <- shiny::NS(id)
-  tabla <- if (.IndicadoresGT("racafeCompactTable")) gt::gt_output(ns("tabla")) else shiny::uiOutput(ns("tabla"))
-  contenido <- shiny::tagList(shiny::tags$h6("Indicadores de mercado"), tabla,
-                               shiny::uiOutput(ns("estado")), .boton(ns("actualizar"), "Actualizar", "rotate"))
-  if (.disponible_api("racafeForms", "racafeForm")) {
-    contenido <- racafeForms::racafeForm(contenido, size = "compact", variant = "plain")
-  }
-  .CargaIndicadoresUI(ns, contenido)
-}
-
-TablaIndicadores <- function(id, abierto, vigentes) {
-  shiny::moduleServer(id, function(input, output, session) {
-    resultado <- shiny::reactiveVal(NULL)
-    cargando <- shiny::reactiveVal(FALSE)
-    .EstadoCargaIndicadores(session, output, cargando)
-    consultar <- function() {
-      if (shiny::isolate(cargando())) return(invisible(NULL))
-      cargando(TRUE)
-      session$onFlushed(function() {
-        on.exit(cargando(FALSE))
-        resultado(tryCatch({
-          actuales <- vigentes(refrescar = TRUE)
-          if (!any(is.finite(actuales$Valor))) stop("Sin indicadores vigentes disponibles.", call. = FALSE)
-          anterior <- tryCatch(.CargarAnteriorIndicadores(), error = function(e) {
-            message("Histórico de indicadores: ", conditionMessage(e))
-            NULL
-          })
-          list(datos = .PrepararTendenciaIndicadores(actuales, anterior), hora = Sys.time(),
-               sin_historico = is.null(anterior) || !nrow(anterior))
-        }, error = function(e) {
-          message("Indicadores vigentes: ", conditionMessage(e))
-          e
-        }))
-      }, once = TRUE)
-    }
-    shiny::observeEvent(abierto(), {
-      if (is.null(resultado())) consultar()
-    })
-    shiny::observeEvent(input$actualizar, consultar())
-    output$estado <- shiny::renderUI({
-      valor <- resultado()
-      if (inherits(valor, "error")) return(.nota("No fue posible consultar los indicadores vigentes.", "error"))
-      if (is.null(valor)) return(NULL)
-      hora <- format(valor$hora, "%d/%m/%Y %H:%M", tz = "America/Bogota")
-      .nota(paste("Consulta:", hora, if (valor$sin_historico) "· Sin referencia histórica del día anterior."))
-    })
-    presentacion <- shiny::reactive({
-      valor <- resultado()
-      shiny::req(!is.null(valor), !inherits(valor, "error"))
-      datos <- valor$datos[c("Item", "Valor")]
-      colores <- cbind(NA_character_, unname(.IND_COLORES_TENDENCIA[valor$datos$tendencia]))
-      list(datos = datos, colores = colores)
-    })
-    if (.IndicadoresGT("racafeCompactTable")) {
-      output$tabla <- gt::render_gt({
-        vista <- presentacion()
-        tabla <- racafeShiny::racafeCompactTable(vista$datos, backend = "gt", show_header = FALSE,
-                                                 font_size = 12, row_padding = 4, align = c("left", "right"))
-        .ColorearIndicadoresGT(tabla, vista$datos, vista$colores)
-      })
-    } else {
-      output$tabla <- shiny::renderUI({
-        vista <- presentacion()
-        .TablaIndicadoresHTML(vista$datos, vista$colores, encabezado = FALSE)
-      })
-    }
-  })
 }
 
 # Comparación histórica ----

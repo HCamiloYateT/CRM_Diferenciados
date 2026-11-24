@@ -144,3 +144,9 @@
   tareas = c("Asignar tarea", "Marcar finalizada"),
   envios = c("Registrar envío"), evaluaciones = c("Registrar evaluación")
 )
+
+# Colores de etapa y prioridad ----
+
+.colores_etapa_crm <- c(CONTACTO = "#6C757D", PROSPECTO = "#E69F00", LEAD = "#0072B2",
+                       CLIENTE = "#009E73", DESCARTADO = "#CC79A7")
+.colores_prioridad_crm <- c(ALTA = "#E69F00", MEDIA = "#0072B2", BAJA = "#009E73")

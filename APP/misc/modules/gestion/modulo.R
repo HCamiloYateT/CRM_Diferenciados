@@ -84,7 +84,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       output$kanban <- renderUI({
         d <- .etiquetar_clientes(datos(), operativo()$clientes)
         if (!nrow(d)) return(NULL)
-        prioridades <- c("ALTA", "MEDIA", "BAJA")
+        prioridades <- names(.colores_prioridad_crm)
         columnas <- lapply(prioridades, function(prioridad) {
           filas <- d[which(d$prioridad == prioridad), , drop = FALSE]
           tarjetas <- lapply(seq_len(nrow(filas)), function(i) {
@@ -96,9 +96,10 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
             div(class = "crm-panel", strong(filas$asunto[i]), cuerpo)
           })
           if (.disponible_api("racafeModulos", "ColumnaKanbanUI")) {
-            return(racafeModulos::ColumnaKanbanUI(prioridad, tarjetas, nrow(filas)))
+            return(racafeModulos::ColumnaKanbanUI(prioridad, tarjetas, nrow(filas),
+                                                 color = .colores_prioridad_crm[[prioridad]]))
           }
-          div(class = "crm-panel", h2(prioridad), tarjetas)
+          div(class = "crm-panel", h2(prioridad, style = paste0("color:", .colores_prioridad_crm[[prioridad]])), tarjetas)
         })
         if (.disponible_api("racafeModulos", "TableroKanbanUI")) {
           return(do.call(racafeModulos::TableroKanbanUI, columnas))

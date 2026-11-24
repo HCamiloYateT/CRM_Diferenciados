@@ -13,50 +13,48 @@
   shiny::tagAppendAttributes(boton, `aria-label` = titulo)
 }
 
-.acciones_header_ui <- function() {
-  simbolos <- c(contacto = "user-plus", gestion = "clipboard-list", oportunidad = "bullseye",
-                muestra = "flask", tarea = "list-check")
-  shiny::div(class = "crm-header-menu", lapply(names(simbolos), function(id) {
-    .boton(paste0("header_", id), .acciones[[id]]$titulo, simbolos[[id]])
-  }))
+.paleta_header_ui <- function() {
+  boton <- if (.disponible_api("racafeForms", "racafeButton")) {
+    racafeForms::racafeButton("escalas_color", NULL, icon = "palette", title = "Escalas de color",
+                              variant = "secondary", size = "xs")
+  } else .boton_header("escalas_color", "Escalas de color", "palette")
+  escala <- function(paleta) {
+    lapply(names(paleta), function(valor) {
+      div(tags$span(class = "kb-scale-swatch", style = paste0("background:", paleta[[valor]])), valor)
+    })
+  }
+  div(class = "dropdown",
+      shiny::tagAppendAttributes(boton, `data-toggle` = "dropdown", `aria-haspopup` = "true",
+                                 `aria-expanded` = "false", `aria-label` = "Escalas de color"),
+      div(class = "dropdown-menu kb-scale-menu", tags$strong("ETAPA DE LA ENTIDAD"),
+          escala(.colores_etapa_crm), tags$hr(), tags$strong("PRIORIDAD DE TAREAS"),
+          escala(.colores_prioridad_crm)))
 }
 
 .header_crm <- function() {
-  marca <- dashboardBrand(title = .titulo, href = "https://analitica.racafe.com/PortalAnalitica/",
-                          image = .logo_crm)
+  marca <- dashboardBrand(title = .titulo, href = "https://analitica.racafe.com/PortalAnalitica/", image = .logo_crm)
   actualizar <- if (.disponible_api("racafeShiny", "Boton")) {
     shiny::tagAppendAttributes(racafeShiny::Boton("actualizar", label = NULL, icono = "sync",
-                                                  size = "xxs", title = "Actualizar corte operacional",
-                                                  color_fondo = "#6c757d", color_hover = "#DA291C"),
-                                `aria-label` = "Actualizar corte operacional")
+                                                 size = "xxs", title = "Actualizar corte operacional",
+                                                 color_fondo = "#6c757d", color_hover = "#DA291C"),
+                               `aria-label` = "Actualizar corte operacional")
   } else .boton_header("actualizar", "Actualizar corte operacional", "sync")
-  corporativo <- .MenuIndicadoresCorporativo()
-  indicadores <- if (corporativo) {
+  descarga <- if (.disponible_api("racafeForms", "racafeButtonDownload")) {
+    racafeForms::racafeButtonDownload("descarga_clientes", label = NULL, icon = "users",
+                                      size = "xxs", variant = "secondary")
+  } else downloadButton("descarga_clientes", "CSV", class = "btn-sm btn-outline-secondary")
+  descarga <- shiny::tagAppendAttributes(descarga, title = "Descargar clientes", `aria-label` = "Descargar clientes")
+  indicadores <- if (.MenuIndicadoresCorporativo()) {
     racafeModulos::MenuHeaderUI("MenuIndicadores", icon = shiny::icon("arrow-trend-up"),
                                 min_width = "400px", title = "Indicadores")
-  } else {
-    tags$li(class = "nav-item dropdown", .boton_header("abrir_indicadores", "Indicadores", "arrow-trend-up"))
-  }
-  acciones <- if (corporativo) {
-    racafeModulos::MenuHeaderUI("MenuAccionesCRM", icon = shiny::icon("circle-plus"), min_width = "240px",
-                                title = "Acciones rápidas")
-  } else {
-    tags$li(class = "nav-item dropdown",
-            shiny::tagAppendAttributes(.boton_header("menu_acciones_crm", "Acciones rápidas", "circle-plus"),
-                                       `data-toggle` = "dropdown", `aria-expanded` = "false"),
-            div(class = "dropdown-menu dropdown-menu-right", .acciones_header_ui()))
-  }
-  tareas <- if (corporativo) {
-    racafeModulos::MenuHeaderUI("MenuTareas", icon = shiny::icon("bars-progress"), title = "Tareas pendientes",
-                                min_width = "320px")
-  } else tags$li(class = "dropdown", .boton_header("pendientes_header", "Tareas pendientes", "bars-progress"))
-  bs4DashNavbar(title = marca, status = "white", border = FALSE, sidebarIcon = icon("bars"),
+  } else tags$li(class = "nav-item dropdown", .boton_header("abrir_indicadores", "Indicadores", "arrow-trend-up"))
+  seguimiento <- lapply(names(.menus_seguimiento_header), function(id) {
+    .SeguimientoHeaderUI(id, .menus_seguimiento_header[[id]])
+  })
+  bs4DashNavbar(status = "white", border = FALSE, sidebarIcon = icon("bars"), title = marca,
                 controlbarIcon = icon("gears"),
-                leftUi = tags$li(class = "dropdown crm-header-identidad",
-                                 uiOutput("identidad_header", inline = TRUE),
-                                 actualizar,
-                                 uiOutput("acciones_clientes", inline = TRUE),
-                                 .boton_header("glosario", "Glosario comercial", "book-open")),
-                rightUi = tagList(indicadores, tareas, acciones, tags$li(class = "dropdown",
-                                  .boton_header("notificaciones", "Notificaciones", "bell"))))
+                leftUi = tags$li(class = "dropdown crm-header-identidad", uiOutput("identidad_header", inline = TRUE),
+                                 actualizar, descarga, .boton_header("glosario", "Glosario comercial", "book-open"),
+                                 .paleta_header_ui()),
+                rightUi = do.call(tagList, c(list(indicadores), seguimiento)))
 }
