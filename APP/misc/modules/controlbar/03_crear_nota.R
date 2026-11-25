@@ -25,60 +25,59 @@
   )
 }
 
-CrearNotasUI <- function(id) {
+CrearNotasUI <- function(id, en_modal = FALSE) {
   ns <- NS(id)
-  racafeForms::racafePanel(
-    title = NULL, padding = "compact", bordered = FALSE,
-    racafeForms::racafeForm(
+  formulario <- racafeForms::racafeForm(
+    racafeForms::racafeFormGroup(
+      racafeForms::racafeFormRow(
+        racafeForms::racafeInputSelect("tipo", "Tipo", c("Nota" = "NOTA", "Tarea" = "SEGUIMIENTO"),
+                                       selected = "NOTA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
+        racafeForms::racafeInputText("titulo", "Título", required = TRUE, ns = ns),
+        responsive = "fixed"
+      )
+    ),
+    racafeForms::racafeFormGroup(
+      racafeForms::racafeInputTextArea("descripcion", "Descripción", rows = 4, ns = ns)
+    ),
+    conditionalPanel(
+      "input.tipo === 'SEGUIMIENTO'", ns = ns,
       racafeForms::racafeFormGroup(
-        racafeForms::racafeFormRow(
-          racafeForms::racafeInputSelect("tipo", "Tipo", c("Nota" = "NOTA", "Tarea" = "SEGUIMIENTO"),
-                                         selected = "NOTA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
-          racafeForms::racafeInputText("titulo", "Título", required = TRUE, ns = ns),
-          responsive = "fixed"
-        )
-      ),
+        racafeForms::racafeInputDate("seguimiento", "Fecha de cumplimiento", value = .HoyProductos() + 1L,
+                                     min = .HoyProductos(), required = TRUE, ns = ns)
+      )
+    ),
+    racafeForms::racafeFormGroup(uiOutput(ns("asignacion")), divider = FALSE),
+    racafeForms::racafeFormGroup(
+      if (.etiquetas_notas_corporativas()) {
+        racafeModulos::ListaDesplegableAgregableUI(ns("etiquetas"))
+      } else div(class = "crm-nota-selectize",
+                 selectizeInput(ns("etiquetas"), "Etiquetas", choices = NULL, multiple = TRUE,
+                                options = list(create = TRUE, persist = FALSE,
+                                               placeholder = "Elegir o crear etiquetas")))
+    ),
+    conditionalPanel(
+      "input.tipo === 'SEGUIMIENTO'", ns = ns,
       racafeForms::racafeFormGroup(
-        racafeForms::racafeInputTextArea("descripcion", "Descripción", rows = 4, ns = ns)
-      ),
-      conditionalPanel(
-        "input.tipo === 'SEGUIMIENTO'", ns = ns,
-        racafeForms::racafeFormGroup(
-          racafeForms::racafeInputDate("seguimiento", "Fecha de cumplimiento", value = .HoyProductos() + 1L,
-                                       min = .HoyProductos(), required = TRUE, ns = ns)
+        racafeForms::racafeInputSwitch("incluir_actividades", "Incluir lista de actividades", ns = ns),
+        conditionalPanel(
+          "input.incluir_actividades", ns = ns,
+          div(class = "nota-actividades-contenedor",
+              div(class = "nota-actividades-header",
+                  racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus",
+                                            variant = "primary", size = "xxs", ns = ns)),
+              div(id = ns("lista_actividades"), .actividad_nota_ui(ns, 1L)))
         )
-      ),
-      racafeForms::racafeFormGroup(uiOutput(ns("asignacion")), divider = FALSE),
-      racafeForms::racafeFormGroup(
-        if (.etiquetas_notas_corporativas()) {
-          racafeModulos::ListaDesplegableAgregableUI(ns("etiquetas"))
-        } else div(class = "crm-nota-selectize",
-                   selectizeInput(ns("etiquetas"), "Etiquetas", choices = NULL, multiple = TRUE,
-                                  options = list(create = TRUE, persist = FALSE,
-                                                 placeholder = "Elegir o crear etiquetas")))
-      ),
-      conditionalPanel(
-        "input.tipo === 'SEGUIMIENTO'", ns = ns,
-        racafeForms::racafeFormGroup(
-          racafeForms::racafeInputSwitch("incluir_actividades", "Incluir lista de actividades", ns = ns),
-          conditionalPanel(
-            "input.incluir_actividades", ns = ns,
-            div(class = "nota-actividades-contenedor",
-                div(class = "nota-actividades-header",
-                    racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus",
-                                              variant = "primary", size = "xxs", ns = ns)),
-                div(id = ns("lista_actividades"), .actividad_nota_ui(ns, 1L)))
-          )
-        )
-      ),
-      racafeForms::racafeFormFooter(
-        racafeForms::racafeButton("crear", "Crear nota o tarea", icon = "note-sticky",
-                                  variant = "primary", size = "xs", ns = ns),
-        align = "right"
-      ),
-      size = "compact", variant = "plain"
-    )
+      )
+    ),
+    racafeForms::racafeFormFooter(
+      racafeForms::racafeButton("crear", "Crear nota o tarea", icon = "note-sticky",
+                                variant = "primary", size = "xs", ns = ns),
+      align = "right"
+    ),
+    size = "compact", variant = "plain"
   )
+  if (en_modal) return(div(class = "w-100", formulario))
+  racafeForms::racafePanel(title = NULL, formulario, padding = "compact", bordered = FALSE)
 }
 
 # Confirmación de captura ----
@@ -121,18 +120,19 @@ CrearNotasUI <- function(id) {
   )
 }
 
-.enviar_asignacion_tarea <- function(campos, creador, responsable, desarrollo) {
+.enviar_asignacion_nota <- function(campos, creador, responsable) {
   usuario <- sub("@racafe[.]com$", "", tolower(trimws(responsable)))
   if (!grepl("^[a-z0-9._-]+$", usuario)) stop("El responsable no tiene un usuario de correo válido.")
-  para <- paste0(if (desarrollo) "hcyate" else usuario, "@racafe.com")
+  para <- paste0(usuario, "@racafe.com")
+  tarea <- identical(campos$tipo, "SEGUIMIENTO")
   fecha <- format(campos$fecha, "%d/%m/%y")
-  vencimiento <- .formato_fecha_crm(campos$seguimiento)
-  mensaje <- paste("Se asignó una tarea en CRM Diferenciados.",
+  descripcion <- .gestion_texto(campos$resultado)
+  cabecera <- if (tarea) "Se asignó una tarea en CRM Diferenciados." else "Se asignó una nota en CRM Diferenciados."
+  mensaje <- paste(c(cabecera,
                    paste0("Título: ", campos$asunto), paste0("Creado por: ", creador),
                    paste0("Fecha de creación: ", fecha), paste0("Asignado a: ", responsable),
-                   paste0("Vencimiento: ", vencimiento),
-                   if (nzchar(trimws(campos$resultado %||% ""))) paste0("Descripción: ", campos$resultado)
-                   else "Sin descripción", sep = " · ")
+                   if (tarea) paste0("Vencimiento: ", .formato_fecha_crm(campos$seguimiento)),
+                   if (!is.na(descripcion)) paste0("Descripción: ", descripcion)), collapse = " · ")
   if (!requireNamespace("racafeMail", quietly = TRUE)) stop("El paquete racafeMail no está instalado.")
   config <- racafeMail::racafeMailConfig()
   if (!nzchar(config$remitente) || !nzchar(config$credenciales) || !file.exists(config$credenciales) ||
@@ -152,7 +152,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
       observeEvent(abrir(), {
         req(abrir() > 0L)
         showModal(racafeForms::racafeModalDetail(
-          title = "Nueva tarea o nota", size = "subventana3", CrearNotasUI(id),
+          title = "Nueva tarea o nota", size = "subventana3", CrearNotasUI(id, en_modal = TRUE),
           footer = racafeForms::racafeModalFooter(racafeForms::racafeButtonCancel("cerrar", ns = ns))
         ))
       }, priority = 10)
@@ -342,18 +342,16 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
         FALSE
       })
       if (actualizado) racafeForms::racafeNotify(session, "Registro guardado", type = "success")
-      if (identical(campos$tipo, "SEGUIMIENTO")) {
-        tryCatch({
-          .enviar_asignacion_tarea(campos, identidad$usuario, identidad$usuario,
-                                   identidad$local || isTRUE(getOption("crm.desarrollo")))
-        }, error = function(e) {
-          detalle <- conditionMessage(e)
-          if (!startsWith(detalle, "Falta configurar") && !startsWith(detalle, "El paquete racafeMail")) {
-            detalle <- "Verifique el servicio SMTP y el correo del responsable."
-          }
-          racafeForms::racafeNotify(session, "Tarea guardada. Correo sin enviar", detalle, type = "warning")
-        })
-      }
+      tryCatch({
+        responsable <- identidad$usuario
+        .enviar_asignacion_nota(campos, identidad$usuario, responsable)
+      }, error = function(e) {
+        detalle <- conditionMessage(e)
+        if (!startsWith(detalle, "Falta configurar") && !startsWith(detalle, "El paquete racafeMail")) {
+          detalle <- "Verifique el servicio SMTP y el correo del responsable."
+        }
+        racafeForms::racafeNotify(session, "Registro guardado. Correo sin enviar", detalle, type = "warning")
+      })
     })
     editar
   })
