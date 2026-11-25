@@ -14,7 +14,9 @@
     d <- .gestion_filas(tablas, "tareas")
     archivadas <- .gestion_filas(tablas, "tarea_archivo")$tarea_id
     d <- d[!d$tarea_id %in% archivadas & d$estado != "CANCELADA", , drop = FALSE]
-    usuario <- toupper(session$user %||% character())
+    identidad <- .crm_identidad_notas(session)
+    if (identidad$local) d <- d[is.na(d$PerCod), , drop = FALSE]
+    usuario <- toupper(identidad$usuario %||% character())
     .gestion_agenda(d[which(toupper(d$responsable) %in% usuario), , drop = FALSE])
   })
   tareas <- reactive({

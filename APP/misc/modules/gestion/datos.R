@@ -118,6 +118,26 @@
   is.character(usuario) && length(usuario) == 1L && !is.na(usuario) && nzchar(trimws(usuario))
 }
 
+.crm_usuario_rstudio <- function(direccion) {
+  if (!interactive() || !direccion %in% c("127.0.0.1", "::1", "::ffff:127.0.0.1") ||
+      !requireNamespace("rstudioapi", quietly = TRUE) || !rstudioapi::isAvailable()) return(NULL)
+  modo <- tryCatch(rstudioapi::versionInfo()$mode, error = function(e) NULL)
+  usuario <- unname(Sys.info()[["effective_user"]])
+  if (!identical(modo, "server") || !.crm_usuario_autenticado(usuario) ||
+      tolower(usuario) %in% c("root", "rstudio", "shiny", "rstudio-connect")) return(NULL)
+  usuario
+}
+
+.crm_identidad_notas <- function(session) {
+  if (.crm_usuario_autenticado(session$user)) {
+    return(list(usuario = session$user, grupos = session$groups, local = FALSE))
+  }
+  desarrollo <- (interactive() && isTRUE(getOption("crm.desarrollo"))) ||
+    !is.null(.crm_usuario_rstudio(session$request$REMOTE_ADDR %||% ""))
+  if (desarrollo) return(list(usuario = "HCYATE", grupos = session$groups %||% "ANALÍTICA", local = TRUE))
+  list(usuario = NULL, grupos = session$groups, local = FALSE)
+}
+
 .crm_es_admin <- function(usuario, grupos = character()) {
   .crm_usuario_autenticado(usuario) && (tolower(trimws(usuario)) == "lmgranados" ||
     any(toupper(trimws(grupos)) %in% c("ANALITICA", "ANALÍTICA")))
@@ -127,12 +147,13 @@
   .crm_es_admin(usuario, grupos) || .prod_autorizado(usuario, Sys.getenv("CRM_GESTION_USUARIOS"))
 }
 
-.gestion_guardar <- function(raiz, tipo, campos, origen, usuario, clientes, pedidos, esperado = NULL, grupos = character()) {
+.gestion_guardar <- function(raiz, tipo, campos, origen, usuario, clientes, pedidos, esperado = NULL,
+                            grupos = character(), sesion_local = FALSE) {
   nota <- tipo == "tarea" && identical(campos$tipo, "NOTA")
   cliente <- .gestion_texto(campos$PerCod)
   sin_cliente <- tipo == "tarea" && (nota || identical(campos$tipo, "SEGUIMIENTO"))
   personal <- sin_cliente && is.na(cliente)
-  autorizada <- .gestion_autorizada(usuario, grupos)
+  autorizada <- !sesion_local && .gestion_autorizada(usuario, grupos)
   if (!autorizada && !(personal && .crm_usuario_autenticado(usuario))) {
     stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
   }

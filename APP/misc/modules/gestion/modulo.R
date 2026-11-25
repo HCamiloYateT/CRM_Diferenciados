@@ -146,8 +146,9 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     }
     tryCatch({
       t <- publicaciones()$operacional$tablas
-      .gestion_guardar(raiz, ctx$tipo, valores, ctx$origen, session$user, t$clientes, t$pedidos, ctx$esperado,
-                       grupos = session$groups)
+      identidad <- .crm_identidad_notas(session)
+      .gestion_guardar(raiz, ctx$tipo, valores, ctx$origen, identidad$usuario, t$clientes, t$pedidos, ctx$esperado,
+                       grupos = identidad$grupos, sesion_local = identidad$local)
       contexto(NULL)
       removeModal()
       al_guardar()
@@ -189,10 +190,11 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     }
     nota <- tipo == "tarea" && (identical(vista, "notas") || identical(valores$tipo, "NOTA"))
     personal <- nota || (tipo == "tarea" && identical(valores$tipo, "SEGUIMIENTO") && is.na(.gestion_texto(cliente)))
-    cuenta <- session$user
+    identidad <- .crm_identidad_notas(session)
+    cuenta <- identidad$usuario
     propia <- personal && .crm_usuario_autenticado(cuenta) &&
       (is.null(origen) || (is.na(.gestion_texto(cliente)) && toupper(valores$responsable) %in% toupper(cuenta)))
-    if (!propia && !.gestion_autorizada(cuenta, session$groups)) {
+    if (!propia && (identidad$local || !.gestion_autorizada(cuenta, identidad$grupos))) {
       return(racafeForms::racafeNotify(session, "La captura requiere una cuenta autorizada", type = "warning"))
     }
     if (!personal && (is.null(clientes) || !nrow(clientes))) {
