@@ -10,8 +10,8 @@
     oportunidades = .vista("Oportunidades", "oportunidades",
       "Adquisición, cross-selling y up-selling. Las sugerencias requieren aceptación autorizada."),
     negociaciones = .vista("Negociaciones y ofertas", "ofertas"),
-    actividades = .vista("Actividades", "tareas"), tareas = .vista("Agenda y pendientes", "tareas"),
-    notas = .vista("Notas y seguimiento", "notas")
+    actividades = .vista("Actividades", "tareas"),
+    notas = .vista("Notas y tareas", "tareas")
   ),
   "Prospección" = list(
     kanban = .vista("Kanban", "empresas"), contactos = .vista("Contactos", "contactos"),

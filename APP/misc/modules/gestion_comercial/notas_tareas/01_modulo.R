@@ -67,6 +67,28 @@ TableroTareasUI <- function(id) {
   }, usuario, paste("Tablero de notas y tareas", accion), id)
 }
 
+.actividades_nota_lista <- function(datos, id) {
+  filas <- datos[datos$tarea_id %in% id, , drop = FALSE]
+  filas <- filas[order(filas$orden), , drop = FALSE]
+  list(textos = filas$actividad, cumplidas = filas$cumplida)
+}
+
+.detalle_nota_ui <- function(fila, tablas) {
+  actividades <- .actividades_nota_lista(.gestion_filas(tablas, "tarea_actividades"), fila$tarea_id)
+  etiquetas <- .gestion_filas(tablas, "tarea_etiquetas")
+  racafeForms::racafeModalDetail(
+    title = fila$asunto, size = "subventana3",
+    tags$p(fila$resultado), tags$p(fila$responsable),
+    tags$p(.formato_fecha_crm(fila$seguimiento)),
+    racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(etiquetas$etiqueta[etiquetas$tarea_id %in% fila$tarea_id]),
+                               empty = "Sin etiquetas"),
+    if (length(actividades$textos)) tags$ul(lapply(seq_along(actividades$textos), function(i) {
+      texto <- actividades$textos[i]
+      tags$li(if (actividades$cumplidas[i]) tags$del(texto) else texto)
+    }))
+  )
+}
+
 TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -78,11 +100,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     notas <- reactive(.tablero_notas_datos(tablas(), usuario, grupos, identidad$local))
     etiquetas <- reactive(.gestion_filas(tablas(), "tarea_etiquetas"))
     lista <- reactive(.gestion_filas(tablas(), "tarea_actividades"))
-    actividades <- function(id) {
-      d <- lista()[lista()$tarea_id %in% id, , drop = FALSE]
-      d <- d[order(d$orden), , drop = FALSE]
-      list(textos = d$actividad, cumplidas = d$cumplida)
-    }
+    actividades <- function(id) .actividades_nota_lista(lista(), id)
     output$filtro_etiquetas <- renderUI({
       opciones <- sort(unique(etiquetas()$etiqueta[etiquetas()$tarea_id %in% notas()$tarea_id]))
       racafeForms::racafeInputSelect("etiquetas", "Etiquetas", c("Sin etiqueta" = "__sin__", opciones),
@@ -154,19 +172,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       fila <- d[d$tarea_id %in% evento$codigo, , drop = FALSE]
       req(nrow(fila) == 1L, evento$accion %in% names(acciones(fila)))
       if (evento$accion == "editar") return(editar("tarea", origen = fila$tarea_id))
-      if (evento$accion == "abrir") {
-        a <- actividades(fila$tarea_id)
-        e <- etiquetas()
-        return(showModal(modalDialog(
-          title = fila$asunto, tags$p(fila$resultado), tags$p(fila$responsable),
-          tags$p(.formato_fecha_crm(fila$seguimiento)),
-          racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(e$etiqueta[e$tarea_id %in% fila$tarea_id]),
-                                     empty = "Sin etiquetas"),
-          if (length(a$textos)) tags$ul(lapply(seq_along(a$textos), function(i) {
-            tags$li(if (a$cumplidas[i]) tags$del(a$textos[i]) else a$textos[i])
-          }))
-        )))
-      }
+      if (evento$accion == "abrir") return(showModal(.detalle_nota_ui(fila, tablas())))
       pendiente(list(id = fila$tarea_id, accion = evento$accion))
       showModal(modalDialog(title = acciones(fila)[[evento$accion]], fila$asunto,
                             footer = tagList(modalButton("Cancelar"), .boton(ns("confirmar"), "Confirmar", "check"))))

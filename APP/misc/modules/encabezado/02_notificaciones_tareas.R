@@ -1,62 +1,80 @@
-# Notas propias y tareas pendientes asignadas ----
+# Notas y tareas del encabezado ----
 
 .SeguimientoHeaderUI <- function() {
   if (.MenuIndicadoresCorporativo()) {
     return(racafeModulos::MenuHeaderUI("MenuTareas", icon = shiny::icon("bars-progress"), min_width = "390px",
                                       title = "Notas y tareas", keep_open_on_select = TRUE))
   }
-  tags$li(class = "nav-item dropdown", .boton_header("MenuTareas_abrir", "Notas y tareas", "bars-progress"))
+  boton <- .boton_header("MenuTareas_abrir", "Notas y tareas", "bars-progress")
+  tags$li(class = "nav-item dropdown position-relative",
+          boton, uiOutput("contador_notas_header", inline = TRUE))
 }
 
-.NotasTareasHeaderServer <- function(input, session, publicaciones) {
-  registros <- reactive({
-    tablas <- publicaciones()$crm$tablas
-    d <- .gestion_filas(tablas, "tareas")
-    archivadas <- .gestion_filas(tablas, "tarea_archivo")$tarea_id
-    d <- d[!d$tarea_id %in% archivadas & d$estado != "CANCELADA", , drop = FALSE]
-    identidad <- .crm_identidad_notas(session)
-    if (identidad$local) d <- d[is.na(d$PerCod), , drop = FALSE]
-    usuario <- toupper(identidad$usuario %||% character())
-    .gestion_agenda(d[which(toupper(d$responsable) %in% usuario), , drop = FALSE])
-  })
-  tareas <- reactive({
-    d <- registros()
-    d[which(d$tipo != "NOTA" & d$estado == "PENDIENTE"), , drop = FALSE]
-  })
-  lista <- function(d, fechas, mensaje) {
-    if (!nrow(d)) return(.nota(mensaje, "empty"))
-    tags$ul(class = "list-unstyled mb-0", lapply(seq_len(min(8L, nrow(d))), function(i) {
-      tags$li(class = "py-1", tags$strong(d$asunto[i]),
-              if (!is.na(fechas[i])) tags$small(class = "ml-2 text-muted", .formato_fecha_crm(fechas[i])))
-    }))
+.notas_header_registros <- function(tablas, identidad) {
+  d <- .tablero_notas_datos(tablas, identidad$usuario %||% character(), identidad$grupos, identidad$local)
+  d[!d$Archivado & !d$Cumplido, , drop = FALSE]
+}
+
+.nota_header_item <- function(fila, datos_actividades, id) {
+  tarea <- fila$Tipo == "list"
+  tipo <- if (tarea) "Tarea" else "Nota"
+  fecha <- if (is.na(fila$seguimiento)) "Sin fecha" else .formato_fecha_crm(fila$seguimiento)
+  metadata <- c(Vencimiento = fecha)
+  if (tarea) {
+    actividades <- .actividades_nota_lista(datos_actividades, fila$tarea_id)
+    total <- length(actividades$textos)
+    metadata <- c(metadata, Actividades = if (total) {
+      paste0(sum(actividades$cumplidas), "/", total, " actividades")
+    } else "Sin actividades")
   }
+  titulo <- .gestion_texto(fila$asunto)
+  if (is.na(titulo)) titulo <- "Sin título"
+  responsable <- .gestion_texto(fila$responsable)
+  if (is.na(responsable)) responsable <- "Sin responsable"
+  prioridad <- tools::toTitleCase(tolower(fila$Prioridad))
+  variante <- c(URGENTE = "danger", IMPORTANTE = "warning", MEDIA = "info", BAJA = "neutral")
+  badges <- tagList(racafeForms::racafeStatusBadge(prioridad, unname(variante[fila$Prioridad]), size = "xs"),
+                    racafeForms::racafeStatusBadge("Pendiente", "warning", size = "xs"))
+  subtitulo <- paste(tipo, "·", responsable)
+  if (.disponible_api("racafeShiny", "racafeListItem")) {
+    return(racafeShiny::racafeListItem(titulo, subtitle = subtitulo, metadata = metadata, badges = badges,
+                                      id = id, value = fila$tarea_id))
+  }
+  tags$li(class = "dropdown-item text-wrap", strong(titulo), tags$div(subtitulo), badges,
+          tags$small(class = "d-block text-muted", paste(names(metadata), metadata, collapse = " · ")))
+}
+
+.NotasTareasHeaderServer <- function(input, output, session, publicaciones) {
+  tablas <- reactive(publicaciones()$crm$tablas)
+  registros <- reactive(.notas_header_registros(tablas(), .crm_identidad_notas(session)))
   contenido <- reactive({
     d <- registros()
-    notas <- d[which(d$tipo == "NOTA"), , drop = FALSE]
-    notas <- notas[order(notas$fecha, decreasing = TRUE, na.last = TRUE), , drop = FALSE]
-    pendientes <- tareas()
-    div(class = "px-3 py-2",
-        tags$h6("Notas"), lista(notas, notas$fecha, "Sin notas propias."),
-        .boton("header_ir_notas", "Abrir notas", "arrow-right"), tags$hr(),
-        tags$h6("Tareas pendientes"),
-        lista(pendientes, pendientes$seguimiento, "Sin tareas pendientes asignadas."))
-  })
-  navegar <- function(vista) {
-    if (!.MenuIndicadoresCorporativo()) removeModal()
-    updatebs4TabItems(session, "navegacion", selected = vista)
-  }
-  observeEvent(input$header_ir_notas, navegar("notas"))
-  if (.MenuIndicadoresCorporativo()) {
-    menu <- racafeModulos::MenuHeaderServer("MenuTareas", items_r = contenido, href = "#",
-                                            footerText = "Abrir agenda", badgeStatus_r = "danger",
-                                            badge_n_r = reactive(nrow(tareas())))
-    observeEvent(menu$footer_click(), navegar("tareas"))
-  } else {
-    observeEvent(input$MenuTareas_abrir, {
-      showModal(modalDialog(title = "Notas y tareas", contenido(),
-                            footer = tagList(.boton("header_ir_tareas", "Abrir agenda", "arrow-right"),
-                                             modalButton("Cerrar"))))
+    actividades <- .gestion_filas(tablas(), "tarea_actividades")
+    items <- lapply(seq_len(nrow(d)), function(i) {
+      .nota_header_item(d[i, , drop = FALSE], actividades, "header_abrir_nota")
     })
-    observeEvent(input$header_ir_tareas, navegar("tareas"))
+    if (.disponible_api("racafeShiny", "racafeListGroup")) {
+      return(do.call(racafeShiny::racafeListGroup, c(items, list(empty_message = "No hay notas ni tareas pendientes."))))
+    }
+    if (!length(items)) return(.nota("No hay notas ni tareas pendientes.", "empty"))
+    tags$ul(class = "list-unstyled mb-0", items)
+  })
+  observeEvent(input$header_abrir_nota, {
+    d <- registros()
+    fila <- d[d$tarea_id %in% input$header_abrir_nota, , drop = FALSE]
+    req(nrow(fila) == 1L)
+    showModal(.detalle_nota_ui(fila, tablas()))
+  })
+  if (.MenuIndicadoresCorporativo()) {
+    racafeModulos::MenuHeaderServer("MenuTareas", items_r = contenido, showHeader = FALSE,
+                                    badgeStatus_r = "danger", badge_n_r = reactive(nrow(registros())))
+  } else {
+    output$contador_notas_header <- renderUI({
+      total <- nrow(registros())
+      if (total) tags$span(class = "badge badge-danger navbar-badge", total)
+    })
+    observeEvent(input$MenuTareas_abrir, {
+      showModal(racafeForms::racafeModalDetail(title = "Notas y tareas", contenido(), size = "subventana3"))
+    })
   }
 }
