@@ -110,11 +110,6 @@
   }
 }
 
-.fuentes_pendientes <- c("Sacos embarcados" = "embarques", "Compromisos pendientes" = "embarques",
-                         "Margen disponible" = "margenes", "Presupuesto" = "presupuesto",
-                         "Tier" = "tiers",
-                         "Productos homologados" = "productos")
-
 # Identificación comercial ----
 
 .cliente_etiqueta <- function(percod, nombre) {

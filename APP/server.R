@@ -75,7 +75,7 @@ server <- function(input, output, session) {
   navegar <- function(tab) updatebs4TabItems(session, "navegacion", selected = tab)
 
   ### Generalidades ----
-  VistaServer("resumen", .vistas$resumen, publicaciones, operativo, filtros, abrir_accion, cargando, navegar)
+  .ResumenEjecutivo("resumen", publicaciones, operativo, filtros, navegar)
   ComparacionIndicadores("comparacion_indicadores",
                          reactive(identical(input$navegacion, "comparacion_indicadores")), vigentes)
 

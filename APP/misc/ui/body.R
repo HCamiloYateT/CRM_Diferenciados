@@ -3,7 +3,8 @@
 .body_crm <- function() {
   tabs <- lapply(names(.vistas), function(id) {
     vista <- .vistas[[id]]
-    contenido <- if (id == "notas") TableroTareasUI(id) else
+    contenido <- if (id == "resumen") .ResumenEjecutivoUI(id) else
+      if (id == "notas") TableroTareasUI(id) else
       if (id == "catalogos") tagList(.AsesoresUI(id), VistaUI(id, vista)) else
       if (id %in% names(.operacion_vistas)) OperacionUI(id) else
       if (id %in% names(.gestion_vistas)) GestionUI(id, vista$titulo) else VistaUI(id, vista)

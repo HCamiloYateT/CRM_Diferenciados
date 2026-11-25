@@ -5,7 +5,7 @@
 }
 
 .grupos <- list(
-  "Generalidades" = list(resumen = .vista("Resumen ejecutivo", "pedidos", grafico = "pedidos")),
+  "Generalidades" = list(resumen = .vista("Resumen ejecutivo", "pedidos")),
   "Gestión comercial" = list(
     oportunidades = .vista("Oportunidades", "oportunidades",
       "Adquisición, cross-selling y up-selling. Las sugerencias requieren aceptación autorizada."),
