@@ -114,11 +114,11 @@
           observados <- which(is.finite(valores))
           valores[observados] <- cumsum(valores[observados])
         }
-        meses <- factor(.formato_fecha_crm(datos$Mes, mes = TRUE), levels = .formato_fecha_crm(datos$Mes, mes = TRUE))
+        meses <- .formato_fecha_crm(datos$Mes, mes = TRUE)
         p <- plotly::plot_ly(x = meses, y = valores, type = "scatter", mode = "lines+markers",
                              name = "Real", line = list(color = "#DA291C"))
         p <- plotly::add_trace(p, x = meses, y = rep(0, nrow(datos)), name = "Ppto")
-        plotly::layout(p, title = titulo, xaxis = list(title = ""),
+        plotly::layout(p, title = titulo, xaxis = list(title = "", type = "category", categoryorder = "array", categoryarray = meses),
                        yaxis = list(title = "", tickprefix = if (campo == "MNFCC_COP") "$" else ""))
       }
       output$serie_sacos <- plotly::renderPlotly(serie("SacosPedidos", "Presupuesto de sacos"))

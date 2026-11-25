@@ -39,6 +39,9 @@
       list(ref("tareas", "tarea_id")), requeridos = character()),
     tarea_archivo = contrato("tarea_id", data.frame(tarea_id = ch, estado = ch),
       list(ref("tareas", "tarea_id")), requeridos = "estado"),
+    tarea_comentarios = contrato("comentario_id",
+      data.frame(comentario_id = ch, tarea_id = ch, autor = ch, fecha = instante, comentario = ch),
+      list(ref("tareas", "tarea_id")), requeridos = c("tarea_id", "autor", "fecha", "comentario")),
     contactos = contrato("contacto_id", data.frame(contacto_id = ch, PerCod = ch, nombre = ch,
       correo = ch, telefono = ch, preferencia_calidad = ch))
   )
@@ -186,6 +189,10 @@
       if (!identical(actual, esperado$fila) || (tipo == "oportunidad" && !identical(detalle, esperado$detalle))) {
         stop("El registro cambió desde que abrió el formulario. Vuelva a consultarlo.", call. = FALSE)
       }
+    }
+    if (tipo == "tarea" && identical(campos$tipo, "SEGUIMIENTO") && estado == "REALIZADA" &&
+        (is.null(origen) || actual$estado != "REALIZADA") && (sesion_local || !.crm_es_admin(usuario, grupos))) {
+      stop("Solo un administrador puede marcar la tarea como cumplida.", call. = FALSE)
     }
     opp <- .gestion_texto(campos$oportunidad_id)
     muestra <- .gestion_texto(campos$muestra_id)
