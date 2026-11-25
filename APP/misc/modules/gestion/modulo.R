@@ -12,7 +12,7 @@ GestionUI <- function(id, titulo) {
   ns <- shiny::NS(id)
   div(class = "crm-vista", h1(titulo),
       div(class = "crm-indicadores-filtros",
-          .selector_clientes(ns("cliente"), "Filtrar cliente"),
+          if (id != "notas") .selector_clientes(ns("cliente"), "Filtrar cliente"),
           .boton(ns("nuevo"), "Registrar", "plus"), .boton(ns("editar"), "Actualizar registro", "pen"),
           if (unname(.gestion_vistas[id]) %in% c("oportunidad", "muestra")) {
             .boton(ns("proxima"), "Próxima acción", "calendar-check")
@@ -43,7 +43,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
         salida
       } else .gestion_filas(t, tabla)
       clientes <- operativo()$clientes
-      if (!is.null(clientes)) d <- d[d$PerCod %in% clientes$PerCod, , drop = FALSE]
+      if (id != "notas" && !is.null(clientes)) d <- d[d$PerCod %in% clientes$PerCod, , drop = FALSE]
       if (nzchar(input$cliente %||% "")) d <- d[d$PerCod == input$cliente, , drop = FALSE]
       if (tipo == "tarea") {
         d <- .gestion_agenda(d)
@@ -61,7 +61,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       if (id == "seguimiento") d <- d[d$estado == "APROBADA" & is.na(d$pedido_id), , drop = FALSE]
       d
     })
-    observeEvent(operativo()$clientes, {
+    if (id != "notas") observeEvent(operativo()$clientes, {
       .actualizar_selector_clientes(session, "cliente", operativo()$clientes, input$cliente)
     }, ignoreNULL = FALSE)
     llave <- .gestion_contratos()[[tabla]]$clave
@@ -70,7 +70,10 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       if (!nrow(d)) return(NULL)
       etiqueta <- intersect(c("asunto", "producto", "nombre"), names(d))[1L]
       d <- .etiquetar_clientes(d, operativo()$clientes)
-      opciones <- stats::setNames(d[[llave]], paste(d$PerCod, d[[etiqueta]], d[[llave]], sep = " · "))
+      rotulo <- paste(d[[etiqueta]], d[[llave]], sep = " · ")
+      asociados <- !is.na(d$PerCod)
+      rotulo[asociados] <- paste(d$PerCod[asociados], rotulo[asociados], sep = " · ")
+      opciones <- stats::setNames(d[[llave]], rotulo)
       selectInput(session$ns("registro"), "Registro", c("Seleccione…" = "", opciones),
                   selected = isolate(input$registro))
     })
@@ -95,7 +98,8 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
             marcas <- etiquetas$etiqueta[etiquetas$tarea_id == id_tarea]
             lista <- actividades[which(actividades$tarea_id == id_tarea), , drop = FALSE]
             lista <- lista[order(lista$orden), , drop = FALSE]
-            cuerpo <- div(class = "crm-panel", tags$p(filas$PerCod[i]), tags$p(filas$resultado[i]),
+            cuerpo <- div(class = "crm-panel", if (!is.na(filas$PerCod[i])) tags$p(filas$PerCod[i]),
+                          tags$p(filas$resultado[i]),
                           tags$p(.formato_fecha_crm(filas$seguimiento[i])),
                           lapply(marcas, function(etiqueta) tags$span(class = "badge badge-secondary mr-1", etiqueta)),
                           if (nrow(lista)) tags$ul(lapply(seq_len(nrow(lista)), function(j) {
@@ -176,7 +180,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
                 "sacos", "embarque", "valor", "unidad", "condiciones", "fecha", "calidad", "resultado",
                 "seguimiento", "correo", "telefono", "prioridad")
     valores <- stats::setNames(lapply(campos, function(x) input[[paste0("gestion_", x)]]), campos)
-    valores$PerCod <- cliente_elegido()
+    valores$PerCod <- if (ctx$nota) ctx$cliente else .gestion_texto(cliente_elegido())
     if (!is.null(ctx$origen) && !identical(valores$PerCod, ctx$cliente)) {
       return(showNotification("El código de cliente del registro no puede cambiar.", type = "error"))
     }
@@ -196,10 +200,6 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       return(invisible(NULL))
     }
     clientes <- .tabla_fuente(publicaciones(), "clientes")
-    if (is.null(clientes) || !nrow(clientes)) {
-      showNotification("Publique un corte con clientes para registrar gestión.", type = "warning")
-      return(invisible(NULL))
-    }
     valores <- vinculos
     esperado <- NULL
     if (!is.null(origen)) {
@@ -226,6 +226,11 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
         valores <- as.list(datos[datos$oportunidad_id == origen, , drop = FALSE])
       }
       esperado <- list(fila = fila, detalle = detalle)
+    }
+    nota <- tipo == "tarea" && (identical(vista, "notas") || identical(valores$tipo, "NOTA"))
+    if (!nota && (is.null(clientes) || !nrow(clientes))) {
+      showNotification("Publique un corte con clientes para registrar gestión.", type = "warning")
+      return(invisible(NULL))
     }
     campo <- function(nombre) {
       valor <- valores[[nombre]]
@@ -263,15 +268,16 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
         fecha("fecha", "Fecha de solicitud", hoy), texto("resultado", "Respuesta o resultado"),
         vinculo("pedido_id", "Pedido vinculado")),
       tarea = tagList(texto("asunto", "Asunto"),
-        elegir("tipo", "Tipo", c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO", "NOTA"),
-               if (identical(vista, "notas")) "NOTA" else "LLAMADA"),
+        if (nota) elegir("tipo", "Tipo", c("NOTA")) else
+          elegir("tipo", "Tipo", c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO", "NOTA")),
         elegir("prioridad", "Prioridad", c("ALTA", "MEDIA", "BAJA"), "MEDIA"),
         fecha("fecha", "Fecha de actividad", hoy), fecha("seguimiento", "Próximo seguimiento"),
         texto("resultado", "Resultado"), vinculo("oportunidad_id", "Oportunidad"), vinculo("muestra_id", "Muestra")))
     estado <- .gestion_estados[[tipo]]
-    cliente <- cliente %||% ""
-    contexto(list(tipo = tipo, origen = origen, cliente = cliente, valores = valores, esperado = esperado))
-    cuerpo <- div(class = "crm-form-grid", .selector_clientes("gestion_cliente", "Cliente"), controles,
+    cliente <- if (nota && is.null(origen)) NA_character_ else .gestion_texto(cliente)
+    contexto(list(tipo = tipo, origen = origen, cliente = cliente, nota = nota, valores = valores, esperado = esperado))
+    cuerpo <- div(class = "crm-form-grid",
+                 if (!nota) .selector_clientes("gestion_cliente", "Cliente"), controles,
                  if (length(estado)) elegir("estado", "Estado", estado,
                                            if (isTRUE(vista %in% c("actividades", "notas"))) "REALIZADA" else estado[[1L]]),
                  textInput("gestion_motivo", "Motivo del registro"))
@@ -280,8 +286,10 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
                           cuerpo, footer = tagList(modalButton("Cancelar"),
                                                     .boton("gestion_guardar", "Confirmar registro", "check"))))
     session$onFlushed(function() {
-      .actualizar_selector_clientes(session, "gestion_cliente", clientes, cliente)
-      actualizar_vinculos(cliente, valores)
+      if (!nota) {
+        .actualizar_selector_clientes(session, "gestion_cliente", clientes, cliente)
+        actualizar_vinculos(cliente, valores)
+      }
     }, once = TRUE)
   }
 }

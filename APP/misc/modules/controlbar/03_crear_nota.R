@@ -26,7 +26,8 @@ CrearNotasUI <- function(id) {
           racafeForms::racafeInputText("titulo", "Título", required = TRUE, ns = ns),
           responsive = "fixed"
         ),
-        div(class = "crm-nota-selectize", .selector_clientes(ns("cliente"), "Cliente"))
+        conditionalPanel("input.tipo === 'SEGUIMIENTO'", ns = ns,
+                         div(class = "crm-nota-selectize", .selector_clientes(ns("cliente"), "Cliente")))
       ),
       racafeForms::racafeFormGroup(
         racafeForms::racafeInputTextArea("descripcion", "Descripción", rows = 4, ns = ns)
@@ -140,13 +141,13 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       if (!.prod_autorizado(session$user, Sys.getenv("CRM_GESTION_USUARIOS"))) {
         return(showNotification("La captura requiere una cuenta autorizada para gestión.", type = "warning"))
       }
-      cliente <- .gestion_texto(input$cliente)
       titulo <- .gestion_texto(input$titulo)
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")
+      cliente <- if (tarea) .gestion_texto(input$cliente) else NA_character_
       seguimiento <- if (tarea) .dp_fecha(as.character(input$seguimiento %||% NA_character_)) else as.Date(NA)
       condiciones <- c(
-        "Seleccione un cliente del corte operacional." = !cliente %in% clientes()$PerCod,
+        "Seleccione un cliente del corte operacional." = tarea && !cliente %in% clientes()$PerCod,
         "Ingrese el título." = is.na(titulo),
         "Seleccione nota o tarea." = !tipo %in% c("NOTA", "SEGUIMIENTO"),
         "Seleccione una fecha de cumplimiento válida." = tarea && (is.na(seguimiento) || seguimiento < .HoyProductos())

@@ -8,8 +8,8 @@
 
 .gestion_contratos <- function() {
   ref <- function(tabla, columna) list(tabla = tabla, columnas = columna)
-  contrato <- function(id, clases, referencias = list()) {
-    list(version = "v1", clave = id, requeridos = "PerCod", prototipo = clases, referencias = referencias)
+  contrato <- function(id, clases, referencias = list(), requeridos = "PerCod") {
+    list(version = "v1", clave = id, requeridos = requeridos, prototipo = clases, referencias = referencias)
   }
   ch <- character()
   fecha <- as.Date(ch)
@@ -27,11 +27,13 @@
       fecha = fecha, estado = ch, pedido_id = ch, resultado = ch, responsable = ch, actualizada = instante)),
     tareas = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, tipo = ch, asunto = ch, resultado = ch,
       fecha = fecha, seguimiento = fecha, estado = ch, oportunidad_id = ch, muestra_id = ch, responsable = ch,
-      actualizada = instante), list(ref("oportunidades", "oportunidad_id"), ref("muestras", "muestra_id"))),
+      actualizada = instante), list(ref("oportunidades", "oportunidad_id"), ref("muestras", "muestra_id")),
+      requeridos = "tipo"),
     tarea_prioridad = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, prioridad = ch),
-      list(ref("tareas", "tarea_id"))),
+      list(ref("tareas", "tarea_id")), requeridos = "prioridad"),
     tarea_etiquetas = contrato(c("tarea_id", "etiqueta"),
-      data.frame(tarea_id = ch, PerCod = ch, etiqueta = ch), list(ref("tareas", "tarea_id"))),
+      data.frame(tarea_id = ch, PerCod = ch, etiqueta = ch), list(ref("tareas", "tarea_id")),
+      requeridos = character()),
     tarea_actividades = contrato(c("tarea_id", "orden"),
       data.frame(tarea_id = ch, PerCod = ch, orden = integer(), actividad = ch, cumplida = logical()),
       list(ref("tareas", "tarea_id"))),
@@ -114,8 +116,11 @@
   if (!.prod_autorizado(usuario, Sys.getenv("CRM_GESTION_USUARIOS"))) {
     stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
   }
-  cliente <- .gestion_campo(campos$PerCod, "cliente")
-  if (!cliente %in% clientes$PerCod) stop("Elija un código de cliente del corte operacional.", call. = FALSE)
+  nota <- tipo == "tarea" && identical(campos$tipo, "NOTA")
+  cliente <- .gestion_texto(campos$PerCod)
+  if ((!nota || !is.na(cliente)) && !cliente %in% clientes$PerCod) {
+    stop("Elija un código de cliente del corte operacional.", call. = FALSE)
+  }
   id <- if (is.null(origen)) basename(tempfile(paste0(tipo, "-"))) else origen
   estado <- if (tipo != "contacto") .gestion_dominio(campos$estado, .gestion_estados[[tipo]])
   pedido <- .gestion_texto(campos$pedido_id)
@@ -130,8 +135,10 @@
                     tarea = "tareas", contacto = "contactos")
     llave <- .gestion_contratos()[[tabla]]$clave
     if (!is.null(origen)) {
-      .gestion_vinculo(t[[tabla]], llave, id, cliente)
-      actual <- t[[tabla]][t[[tabla]][[llave]] == id, , drop = FALSE]
+      actual <- t[[tabla]][which(t[[tabla]][[llave]] == id), , drop = FALSE]
+      if (nrow(actual) != 1L || !identical(actual$PerCod, cliente)) {
+        stop("La referencia no pertenece a este cliente.", call. = FALSE)
+      }
       detalle <- t$oportunidad_detalle[t$oportunidad_detalle$oportunidad_id == id, , drop = FALSE]
       if (!identical(actual, esperado$fila) || (tipo == "oportunidad" && !identical(detalle, esperado$detalle))) {
         stop("El registro cambió desde que abrió el formulario. Vuelva a consultarlo.", call. = FALSE)
