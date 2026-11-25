@@ -215,7 +215,7 @@
 
 .FormatearIndicadores <- function(valores, claves) {
   vapply(seq_along(valores), function(i) {
-    if (!is.finite(valores[i])) return("—")
+    if (!is.finite(valores[i])) return("")
     texto <- formatC(valores[i], digits = .IND_DECIMALES[[claves[i]]], format = "f",
                      big.mark = ",", decimal.mark = ".")
     paste(paste0("$", texto), .IND_UNIDADES[[claves[i]]])
@@ -265,6 +265,6 @@
     actual <- .CargarHistoricoIndicadores(fin, historico)
     if (!nrow(actual)) stop("Sin indicadores históricos para la fecha final.", call. = FALSE)
   }
-  list(datos = .ConstruirComparacionIndicadores(anterior, actual), inicio = inicio, fin = fin,
+  list(datos = .ConstruirComparacionIndicadores(anterior, actual), inicio = inicio, fin = fin, vigente = fin == hoy,
        fuente = if (fin == hoy) "FNC y consultas operacionales vigentes" else "CRMINDICADORES")
 }
