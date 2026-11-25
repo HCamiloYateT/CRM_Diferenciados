@@ -117,3 +117,10 @@
 .crm-etiquetas { gap: .35rem; }
 .crm-etiquetas > li { min-width: 0; max-width: 100%; }
 .crm-etiquetas .rf-status-badge { white-space: normal; overflow-wrap: anywhere; }
+
+.crm-tareas-form .rm-task-board-shared { overflow-x: auto; }
+.crm-tareas-form .rm-task-board-shared > .kpb-slot {
+  flex: 1 0 220px;
+  min-width: 220px;
+  max-width: none;
+}
