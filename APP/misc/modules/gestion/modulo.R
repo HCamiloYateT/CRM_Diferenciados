@@ -158,10 +158,6 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
   })
 
   function(tipo, origen = NULL, cliente = NULL, vista = NULL, vinculos = list()) {
-    if (!.gestion_autorizada(session$user, session$groups)) {
-      racafeForms::racafeNotify(session, "La captura requiere una cuenta autorizada", type = "warning")
-      return(invisible(NULL))
-    }
     clientes <- .tabla_fuente(publicaciones(), "clientes")
     valores <- vinculos
     esperado <- NULL
@@ -193,6 +189,12 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     }
     nota <- tipo == "tarea" && (identical(vista, "notas") || identical(valores$tipo, "NOTA"))
     personal <- nota || (tipo == "tarea" && identical(valores$tipo, "SEGUIMIENTO") && is.na(.gestion_texto(cliente)))
+    cuenta <- session$user
+    propia <- personal && .crm_usuario_autenticado(cuenta) &&
+      (is.null(origen) || (is.na(.gestion_texto(cliente)) && toupper(valores$responsable) %in% toupper(cuenta)))
+    if (!propia && !.gestion_autorizada(cuenta, session$groups)) {
+      return(racafeForms::racafeNotify(session, "La captura requiere una cuenta autorizada", type = "warning"))
+    }
     if (!personal && (is.null(clientes) || !nrow(clientes))) {
       racafeForms::racafeNotify(session, "Publique un corte con clientes para registrar gestión", type = "warning")
       return(invisible(NULL))
