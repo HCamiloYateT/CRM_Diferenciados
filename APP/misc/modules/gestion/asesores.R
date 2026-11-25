@@ -40,7 +40,8 @@
   stop("Seleccione un responsable vigente.", call. = FALSE)
 }
 
-.asesores_guardar <- function(raiz, clave, nombre, correo, vigente, identidad, origen) {
+.asesores_guardar <- function(raiz, clave, nombre, correo, vigente, identidad, origen,
+                              pedidos = NULL, posicion = NULL) {
   if (!.crm_es_admin(identidad$usuario, identidad$grupos)) {
     stop("Solo un administrador puede editar el catálogo.", call. = FALSE)
   }
@@ -60,6 +61,7 @@
     tablas$asesores <- .gestion_upsert(a, fila, "usuario")
     i <- match(clave, tablas$asesores_orden$usuario)
     if (!is.na(i)) tablas$asesores_orden$eliminado[i] <- FALSE
+    if (!is.null(posicion)) tablas$asesores_orden <- .asesores_reordenar(tablas, pedidos, clave, posicion)
     tablas
   }, identidad$usuario, "Actualizar catálogo de asesores", clave)
 }
@@ -81,13 +83,27 @@
   filas[order(manual, -as.numeric(filas$ultima_creacion), filas$usuario, na.last = TRUE), , drop = FALSE]
 }
 
+.asesores_reordenar <- function(tablas, pedidos, clave, posicion) {
+  orden <- tablas$asesores_orden
+  claves <- .asesores_filas(pedidos, .asesores_catalogo(tablas), orden)$usuario
+  if (length(posicion) != 1L || !is.numeric(posicion) || !is.finite(posicion) ||
+      posicion != trunc(posicion) || !posicion %in% seq_along(claves) || !clave %in% claves) {
+    stop("Indique una posición válida dentro del listado.", call. = FALSE)
+  }
+  if (match(clave, claves) == posicion) return(orden)
+  claves <- append(claves[claves != clave], clave, after = posicion - 1L)
+  filas <- data.frame(usuario = claves, orden = seq_along(claves), eliminado = FALSE)
+  rbind(orden[orden$eliminado, , drop = FALSE], filas)
+}
+
 .AsesoresUI <- function(id) {
   ns <- NS(id)
-  div(class = "row",
-      div(class = "col-12 col-xl-9 mb-3",
-          div(class = "font-weight-bold mb-1", "Personas"),
-          racafeModulos::TablaVancouverUI(ns("asesores"), descargable = FALSE),
-          uiOutput(ns("alta"))))
+  ui <- div(class = "row",
+            div(class = "col-12 col-xl-9 mb-3",
+                div(class = "font-weight-bold mb-1", "Personas"),
+                racafeModulos::TablaVancouverUI(ns("asesores"), descargable = FALSE),
+                uiOutput(ns("alta"))))
+  htmltools::attachDependencies(ui, racafeModulos::MenuAccionesDependencies())
 }
 
 .AsesoresServer <- function(id, publicaciones, raiz, refrescar) {
@@ -118,17 +134,22 @@
     boton_accion <- function(clave, accion, titulo, icono) {
       evento <- jsonlite::toJSON(ns("accion"), auto_unbox = TRUE)
       valor <- jsonlite::toJSON(list(usuario = clave, tipo = accion), auto_unbox = TRUE)
+      onclick <- sprintf("Shiny.setInputValue(%s,%s,{priority:'event'});", evento, valor)
+      if (accion == "editar") {
+        return(tags$button(type = "button", class = "rm-action-option", style = "--rm-action-color:#495057;",
+                           title = titulo, `aria-label` = titulo, onclick = onclick, icon(icono)))
+      }
       variante <- if (accion == "eliminar") "danger" else "secondary"
       tagAppendAttributes(
         racafeForms::racafeButton(paste("fila", accion, clave, sep = "_"), NULL, icon = icono,
                                   variant = variante, size = "xxs", title = titulo, ns = ns),
-        `aria-label` = titulo, onclick = sprintf("Shiny.setInputValue(%s,%s,{priority:'event'});", evento, valor),
+        `aria-label` = titulo, onclick = onclick,
         style = paste0("height:19px;min-height:19px;width:19px;min-width:19px;padding:0;",
                        "font-size:10px;line-height:17px;margin:0;border-radius:50%;")
       )
     }
-    tabla <- racafeModulos::TablaVancouverServer(
-      "asesores", data = filas, id_col = "usuario", modo_seleccion = "fila", descargable = FALSE, sortable = FALSE,
+    racafeModulos::TablaVancouverServer(
+      "asesores", data = filas, id_col = "usuario", modo_seleccion = "ninguno", descargable = FALSE, sortable = FALSE,
       tabla_fn = function(datos, ...) {
         tabla <- racafeShiny::gt_minimal_style(gt::gt(datos))
         tabla <- gt::cols_move_to_start(tabla, columns = "numero")
@@ -151,6 +172,7 @@
         }),
         acciones = list(name = "Acciones", cell = function(clave, indice) {
           tags$span(class = "d-inline-flex align-items-center", style = "gap:3px;white-space:nowrap;",
+                    boton_accion(clave, "editar", "Editar", "pen"),
                     if (indice > 1L) boton_accion(clave, "subir", "Subir", "arrow-up"),
                     if (indice < nrow(filas())) boton_accion(clave, "bajar", "Bajar", "arrow-down"),
                     if (!identical(clave, .asesor_provisional)) {
@@ -169,6 +191,10 @@
           if (is.null(clave)) racafeForms::racafeInputText("usuario_nuevo", "Usuario", required = TRUE, ns = ns),
           racafeForms::racafeInputText("nombre", "Nombre de la persona", value = fila$nombre %||% "", ns = ns),
           racafeForms::racafeInputText("correo", "Correo", value = fila$correo %||% "", ns = ns),
+          if (!is.null(clave)) {
+            racafeForms::racafeInputNumeric("posicion", "Posición en el listado", value = fila$numero,
+                                            format = "integer", min = 1, max = nrow(filas()), ns = ns)
+          },
           racafeForms::racafeInputSwitch("vigente", "Activo", value = fila$vigente %||% TRUE, ns = ns),
           variant = "plain"
         ),
@@ -178,11 +204,6 @@
         )
       ))
     }
-    observeEvent(tabla$seleccion(), {
-      req(autorizado)
-      editar(tabla$seleccion()$fila)
-      tabla$limpiar()
-    })
     observeEvent(input$anadir, {
       req(autorizado)
       editar()
@@ -199,7 +220,10 @@
         clave <- registro$clave %||% .asesor_usuario(input$usuario_nuevo)
         if (is.null(registro$clave) && clave %in% filas()$usuario) stop("El usuario ya está en el catálogo.")
         correo <- if (nzchar(input$correo %||% "")) input$correo else .asesor_correo(clave)
-        .asesores_guardar(raiz, clave, input$nombre, correo, input$vigente, identidad, registro$fila)
+        posicion <- if (!is.null(registro$clave)) input$posicion %||% NA_real_
+        pedidos <- .tabla_fuente(publicaciones(), "pedidos")
+        .asesores_guardar(raiz, clave, input$nombre, correo, input$vigente, identidad, registro$fila,
+                          pedidos = pedidos, posicion = posicion)
         origen(NULL)
         removeModal()
         refrescar()
@@ -220,9 +244,7 @@
             fila <- data.frame(usuario = clave, orden = NA_integer_, eliminado = TRUE)
             tablas$asesores_orden <- .gestion_upsert(orden, fila, "usuario")
           } else if ((i + paso) %in% seq_along(claves)) {
-            claves[c(i, i + paso)] <- claves[c(i + paso, i)]
-            filas_orden <- data.frame(usuario = claves, orden = seq_along(claves), eliminado = FALSE)
-            tablas$asesores_orden <- rbind(orden[orden$eliminado, , drop = FALSE], filas_orden)
+            tablas$asesores_orden <- .asesores_reordenar(tablas, pedidos, clave, i + paso)
           }
           tablas
         }, identidad$usuario, if (is.null(paso)) "Retirar asesor del catálogo" else "Reordenar asesores", clave)
@@ -234,6 +256,7 @@
       clave <- input$accion$usuario
       req(autorizado, is.character(clave), length(clave) == 1L, clave %in% filas()$usuario)
       switch(input$accion$tipo,
+             editar = editar(filas()[filas()$usuario == clave, , drop = FALSE]),
              subir = aplicar_orden(clave, -1L),
              bajar = aplicar_orden(clave, 1L),
              eliminar = {
