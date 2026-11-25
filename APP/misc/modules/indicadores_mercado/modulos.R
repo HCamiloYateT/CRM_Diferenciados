@@ -38,7 +38,7 @@
   shiny::div(class = "crm-tabla table-responsive",
              html$table(class = "table table-sm",
                         if (encabezado) html$thead(html$tr(lapply(names(datos), function(nombre) {
-                          html$th(style = "border-bottom:1px solid #6C757D;", nombre)
+                          html$th(style = "border-bottom:1px solid #495057;", nombre)
                         }))),
                         html$tbody(lapply(seq_len(nrow(datos)), function(i) {
                           html$tr(lapply(seq_len(ncol(datos)), function(j) {
@@ -74,16 +74,22 @@ ComparacionIndicadoresUI <- function(id) {
   tabla <- if (.IndicadoresGT("racafeTableVancouver")) {
     gt::gt_output(ns("tabla"))
   } else shiny::uiOutput(ns("tabla"))
-  shiny::div(class = "crm-vista", shiny::h1("Comparación de Indicadores"),
-             shiny::div(class = "d-flex flex-wrap align-items-end mb-3",
-                        shiny::div(class = "mr-3", style = "width:220px;max-width:100%;",
-                                   fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1)),
-                        shiny::div(style = "width:220px;max-width:100%;",
-                                   fecha("fecha_actual", "Fecha final", .HoyIndicadores()))),
-             racafeForms::racafeFormFooter(
-               racafeForms::racafeButton("actualizar", "Actualizar", icon = "sync", ns = ns,
-                                         variant = "primary", size = "xxs"), align = "right"),
-             .CargaIndicadoresUI(ns, shiny::div(class = "crm-panel", tabla, shiny::uiOutput(ns("estado")))))
+  shiny::tagList(
+    shiny::div(class = "d-flex flex-wrap align-items-end",
+               style = "gap:12px;margin-bottom:16px;",
+               shiny::div(style = "width:220px;max-width:100%;",
+                          fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1)),
+               shiny::div(style = "width:220px;max-width:100%;",
+                          fecha("fecha_actual", "Fecha final", .HoyIndicadores())),
+               shiny::div(class = "d-flex align-items-center", style = "height:38px;",
+                          shiny::tagAppendAttributes(
+                            racafeForms::racafeButton("actualizar", label = NULL, icon = "arrows-rotate",
+                                                      title = "Actualizar indicadores", variant = "primary",
+                                                      size = "xs", ns = ns),
+                            `aria-label` = "Actualizar indicadores"
+                          ))),
+    .CargaIndicadoresUI(ns, shiny::tagList(tabla, shiny::uiOutput(ns("estado"))))
+  )
 }
 
 .MetodologiaComparacionIndicadores <- function(valor, id) {
@@ -168,7 +174,7 @@ ComparacionIndicadores <- function(id, activo, vigentes) {
     if (.IndicadoresGT("racafeTableVancouver")) {
       output$tabla <- gt::render_gt({
         vista <- presentacion()
-        tabla <- racafeShiny::racafeTableVancouver(vista$datos, header_color = "#6C757D", font_size = 12, row_padding = 4,
+        tabla <- racafeShiny::racafeTableVancouver(vista$datos, header_color = "#495057", font_size = 11, row_padding = 3,
                                                    align = c("left", rep("right", 4L)), min_width = "620px")
         .ColorearIndicadoresGT(tabla, vista$datos, vista$colores)
       })
