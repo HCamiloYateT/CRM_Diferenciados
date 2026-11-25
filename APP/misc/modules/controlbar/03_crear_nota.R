@@ -133,14 +133,30 @@ CrearNotasUI <- function(id) {
                    paste0("Vencimiento: ", vencimiento),
                    if (nzchar(trimws(campos$resultado %||% ""))) paste0("Descripción: ", campos$resultado)
                    else "Sin descripción", sep = " · ")
-  racafeMail::racafeMailNotificacion(para = para, nombre = responsable, mensaje = mensaje)
+  if (!requireNamespace("racafeMail", quietly = TRUE)) stop("El paquete racafeMail no está instalado.")
+  config <- racafeMail::racafeMailConfig()
+  if (!nzchar(config$remitente) || !nzchar(config$credenciales) || !file.exists(config$credenciales) ||
+      dir.exists(config$credenciales) || file.access(config$credenciales, 4L) != 0L) {
+    stop("Falta configurar el remitente o las credenciales SMTP de racafeMail.")
+  }
+  racafeMail::racafeMailNotificacion(para = para, nombre = responsable, mensaje = mensaje, config = config)
 }
 
-CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
+CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abrir = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     identidad <- .crm_identidad_notas(session)
-    editar <- .EditarNotas("edicion", publicaciones, raiz, identidad, al_guardar)
+    en_modal <- !is.null(abrir)
+    editar <- if (!en_modal) .EditarNotas("edicion", publicaciones, raiz, identidad, al_guardar)
+    if (en_modal) {
+      observeEvent(abrir(), {
+        req(abrir() > 0L)
+        showModal(racafeForms::racafeModalDetail(
+          title = "Nueva tarea o nota", size = "subventana3", CrearNotasUI(id),
+          footer = racafeForms::racafeModalFooter(racafeForms::racafeButtonCancel("cerrar", ns = ns))
+        ))
+      }, priority = 10)
+    }
     if (is.null(usuario)) usuario <- reactive(toupper(identidad$usuario %||% "HCYATE"))
     pendiente <- reactiveVal(NULL)
     actividades <- reactiveVal(1L)
@@ -155,7 +171,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
                                                selected = character(), multiple = TRUE, fem = TRUE)
     }
     etiquetas_elegidas <- if (is.null(etiquetas_modulo)) reactive(input$etiquetas) else etiquetas_modulo$seleccion
-    observeEvent(publicaciones(), {
+    observeEvent(list(publicaciones(), if (en_modal) abrir()), {
       catalogo <- .gestion_filas(publicaciones()$crm$tablas, "tarea_etiquetas")$etiqueta
       seleccion <- if (limpiar_etiquetas()) character() else etiquetas_elegidas() %||% character()
       limpiar_etiquetas(FALSE)
@@ -261,11 +277,13 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
                      fecha = .HoyProductos(), seguimiento = valores$seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
                      prioridad = valores$prioridad,
-                     motivo = if (tarea) "Creación de tarea desde el panel lateral" else
-                       "Creación de nota desde el panel lateral",
+                     motivo = if (tarea) "Creación de tarea" else "Creación de nota",
                      etiquetas = etiquetas_elegidas(), actividades = lista,
                      actividades_cumplidas = lista[cumplidas]))
-      showModal(.confirmacion_nota_ui(pendiente(), usuario(), ns))
+      if (en_modal) {
+        titulo_confirmacion <- if (tarea) "¿Crear esta tarea?" else "¿Crear esta nota?"
+        racafeForms::racafeConfirm(session, "confirmar_modal", titulo_confirmacion, titulo, ns = ns)
+      } else showModal(.confirmacion_nota_ui(pendiente(), usuario(), ns))
     })
 
     observeEvent(input$cancelar, {
@@ -288,15 +306,21 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
       } else etiquetas_modulo$actualizar(etiquetas_modulo$choices(), character())
     }
 
-    observeEvent(input$confirmar, {
-      campos <- pendiente()
-      req(!is.null(campos))
+    observeEvent(input$cerrar, {
       pendiente(NULL)
+      limpiar_formulario()
+      removeModal()
+    })
+
+    observeEvent(if (en_modal) input$confirmar_modal else input$confirmar, {
+      campos <- pendiente()
+      pendiente(NULL)
+      req(!is.null(campos), !en_modal || isTRUE(input$confirmar_modal))
       on.exit({
         if (.disponible_api("racafeShiny", "racafeUpdateOverlayLoader")) {
           racafeShiny::racafeUpdateOverlayLoader(session, "guardar", FALSE)
         }
-        removeModal()
+        if (!en_modal) removeModal()
       }, add = TRUE)
       guardado <- tryCatch({
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = identidad$usuario,
@@ -308,6 +332,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
       })
       if (!guardado) return(invisible(NULL))
       limpiar_formulario()
+      if (en_modal) removeModal()
       actualizado <- tryCatch({
         al_guardar()
         TRUE
@@ -322,8 +347,11 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
           .enviar_asignacion_tarea(campos, identidad$usuario, identidad$usuario,
                                    identidad$local || isTRUE(getOption("crm.desarrollo")))
         }, error = function(e) {
-          racafeForms::racafeNotify(session, "Tarea guardada", "No se pudo enviar el correo de asignación.",
-                                    type = "warning")
+          detalle <- conditionMessage(e)
+          if (!startsWith(detalle, "Falta configurar") && !startsWith(detalle, "El paquete racafeMail")) {
+            detalle <- "Verifique el servicio SMTP y el correo del responsable."
+          }
+          racafeForms::racafeNotify(session, "Tarea guardada. Correo sin enviar", detalle, type = "warning")
         })
       }
     })

@@ -80,6 +80,8 @@ server <- function(input, output, session) {
 
   ### Gestión comercial ----
   .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
+  CrearNotas("CrearNotaModal", publicaciones, .raiz_crm, refrescar_gestion, usuario = usuario,
+             abrir = reactive(input[["notas-crear"]]))
   TableroTareas("notas", publicaciones, .raiz_crm, refrescar_gestion, editar_nota)
   for (id in names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar)
 

@@ -5,10 +5,9 @@ TableroTareasUI <- function(id) {
   div(class = "crm-vista crm-tareas-form",
       racafeForms::racafeForm(
         variant = "plain",
-        racafeForms::racafeActionBar(left = tagAppendAttributes(
-          racafeForms::racafeButton("crear", "Nueva tarea o nota", icon = "plus", ns = ns),
-          `data-rf-controlbar-tab` = "Tareas y notas"
-        )),
+        racafeForms::racafeActionBar(
+          left = racafeForms::racafeButton("crear", "Nueva tarea o nota", icon = "plus", ns = ns)
+        ),
         racafeForms::racafeFormRow(
           racafeForms::racafeInputText("buscar", "Buscar", placeholder = "Título, descripción o actividad", ns = ns),
           uiOutput(ns("filtro_etiquetas")),
