@@ -92,6 +92,7 @@ server <- function(input, output, session) {
   })
 
   ### Operación y consultas ----
+  .AsesoresServer("catalogos", publicaciones, .raiz_crm, refrescar_gestion)
   for (id in names(.operacion_vistas)) OperacionServer(id, publicaciones, operativo, filtros)
   consultas <- setdiff(names(.vistas), c("resumen", "notas", names(.operacion_vistas), names(.gestion_vistas)))
   for (id in consultas) {

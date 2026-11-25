@@ -100,7 +100,10 @@
         fecha <- .formato_fecha_crm(estado$fecha)
         tags$small(class = "d-block text-muted text-nowrap", role = "status",
                    if (is.na(fecha)) "Fecha de cumplimiento sin registrar" else paste("Cumplida el", fecha),
-                   if (!is.na(estado$autor)) paste("·", estado$autor))
+                   if (!is.na(estado$autor)) {
+                     d <- .asesores_catalogo(publicaciones()$crm$tablas)
+                     paste("·", .asesor_nombre(estado$autor, d))
+                   })
       })
       output[[paste0("nota_actividad_", indice)]] <- renderUI({
         if (!isTRUE(estados[[clave]]$cumplida)) return(NULL)
@@ -168,6 +171,7 @@
                                            .gestion_filas(tablas, "tarea_actividad_cumplimiento"),
                                            .gestion_filas(tablas, "tarea_actividad_detalle"))
       comentarios <- .gestion_filas(tablas, "tarea_comentarios")
+      comentarios$autor <- .asesor_nombre(comentarios$autor, .asesores_catalogo(tablas))
       for (indice in filas()$id) limpiar_fila(indice)
       ids <- secuencia + seq_along(originales$textos)
       secuencia <<- secuencia + length(ids)
@@ -186,7 +190,7 @@
             racafeForms::racafeInfoItem("Creado por", fila$Creador),
             racafeForms::racafeInfoItem("Fecha de creación", format(fila$Creada, "%d/%m/%y"),
                                        empty = "Fecha sin registrar"),
-            racafeForms::racafeInfoItem("Asignado a", fila$responsable),
+            racafeForms::racafeInfoItem("Asignado a", fila$NombreResponsable),
             columns = 3L, responsive = "auto"
           ),
           racafeForms::racafeInfoItem("Descripción", fila$resultado),

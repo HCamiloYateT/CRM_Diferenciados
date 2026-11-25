@@ -65,16 +65,21 @@ Filtros <- function(id, publicaciones) {
     })
     output$creador_pedido <- renderUI({
       pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-      creadores <- sort(unique(na.omit(as.character(pedidos$PdcUsu))))
-      creadores <- creadores[nzchar(creadores)]
-      racafeForms::racafeFormRow(
-        racafeForms::racafeInputSelect(ns("filtro_creador"), "Comercial que creó el pedido", creadores, multiple = TRUE,
-                                      selected = intersect(isolate(input$filtro_creador), creadores), empty_label = "Todos"),
-        racafeForms::racafeInputSelect(ns("filtro_asesor"), "Asesor", c("Pendiente" = ""), disabled = TRUE),
-        responsive = "fixed"
-      )
+      catalogo <- .asesores_catalogo(publicaciones()$crm$tablas)
+      creadores <- sort(unique(na.omit(.asesor_usuario(pedidos$PdcUsu))))
+      creadores <- setdiff(creadores[nzchar(creadores)], catalogo$usuario[!catalogo$vigente])
+      opciones <- stats::setNames(creadores, .asesor_nombre(creadores, catalogo))
+      racafeForms::racafeInputSelect(ns("filtro_creador"), "Asesor que creó el pedido", opciones, multiple = TRUE,
+                                    selected = intersect(isolate(input$filtro_creador), creadores),
+                                    empty_label = "Todos")
     })
 
-    filtros
+    reactive({
+      actual <- filtros()
+      catalogo <- .asesores_catalogo(publicaciones()$crm$tablas)
+      actual$asesores_inactivos <- catalogo$usuario[!catalogo$vigente]
+      actual$creador <- setdiff(actual$creador, actual$asesores_inactivos)
+      actual
+    })
   })
 }

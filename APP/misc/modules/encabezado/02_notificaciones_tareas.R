@@ -29,7 +29,7 @@
   }
   titulo <- .gestion_texto(fila$asunto)
   if (is.na(titulo)) titulo <- "Sin título"
-  responsable <- .gestion_texto(fila$responsable)
+  responsable <- .gestion_texto(fila$NombreResponsable)
   if (is.na(responsable)) responsable <- "Sin responsable"
   prioridad <- tools::toTitleCase(tolower(fila$Prioridad))
   variante <- c(URGENTE = "danger", IMPORTANTE = "warning", MEDIA = "info", BAJA = "neutral")
