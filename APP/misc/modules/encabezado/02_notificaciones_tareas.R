@@ -44,7 +44,7 @@
           tags$small(class = "d-block text-muted", paste(names(metadata), metadata, collapse = " · ")))
 }
 
-.NotasTareasHeaderServer <- function(input, output, session, publicaciones) {
+.NotasTareasHeaderServer <- function(input, output, session, publicaciones, editar) {
   tablas <- reactive(publicaciones()$crm$tablas)
   registros <- reactive(.notas_header_registros(tablas(), .crm_identidad_notas(session)))
   contenido <- reactive({
@@ -63,7 +63,7 @@
     d <- registros()
     fila <- d[d$tarea_id %in% input$header_abrir_nota, , drop = FALSE]
     req(nrow(fila) == 1L)
-    showModal(.detalle_nota_ui(fila, tablas()))
+    editar(fila)
   })
   if (.MenuIndicadoresCorporativo()) {
     racafeModulos::MenuHeaderServer("MenuTareas", items_r = contenido, showHeader = FALSE,

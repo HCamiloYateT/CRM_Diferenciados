@@ -68,7 +68,7 @@ server <- function(input, output, session) {
 
   ### Indicadores, notas y tareas ----
   vigentes <- .IndicadoresHeaderServer(input, session)
-  .NotasTareasHeaderServer(input, output, session, publicaciones)
+  .NotasTareasHeaderServer(input, output, session, publicaciones, editar_nota)
 
   ## Body ----
   navegar <- function(tab) updatebs4TabItems(session, "navegacion", selected = tab)
