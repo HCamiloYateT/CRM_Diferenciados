@@ -114,9 +114,12 @@
   tabla
 }
 
+.crm_usuario_autenticado <- function(usuario) {
+  is.character(usuario) && length(usuario) == 1L && !is.na(usuario) && nzchar(trimws(usuario))
+}
+
 .crm_es_admin <- function(usuario, grupos = character()) {
-  identidad_valida <- length(usuario) == 1L && !is.na(usuario) && nzchar(trimws(usuario))
-  identidad_valida && (tolower(trimws(usuario)) == "lmgranados" ||
+  .crm_usuario_autenticado(usuario) && (tolower(trimws(usuario)) == "lmgranados" ||
     any(toupper(trimws(grupos)) %in% c("ANALITICA", "ANALÍTICA")))
 }
 
@@ -125,12 +128,14 @@
 }
 
 .gestion_guardar <- function(raiz, tipo, campos, origen, usuario, clientes, pedidos, esperado = NULL, grupos = character()) {
-  if (!.gestion_autorizada(usuario, grupos)) {
-    stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
-  }
   nota <- tipo == "tarea" && identical(campos$tipo, "NOTA")
   cliente <- .gestion_texto(campos$PerCod)
   sin_cliente <- tipo == "tarea" && (nota || identical(campos$tipo, "SEGUIMIENTO"))
+  personal <- sin_cliente && is.na(cliente)
+  autorizada <- .gestion_autorizada(usuario, grupos)
+  if (!autorizada && !(personal && .crm_usuario_autenticado(usuario))) {
+    stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
+  }
   if ((!sin_cliente || !is.na(cliente)) && !cliente %in% clientes$PerCod) {
     stop("Elija un código de cliente del corte operacional.", call. = FALSE)
   }
@@ -151,6 +156,10 @@
       actual <- t[[tabla]][which(t[[tabla]][[llave]] == id), , drop = FALSE]
       if (nrow(actual) != 1L || !identical(actual$PerCod, cliente)) {
         stop("La referencia no pertenece a este cliente.", call. = FALSE)
+      }
+      if (!autorizada && (!identical(actual$tipo, campos$tipo) ||
+                          !toupper(actual$responsable) %in% toupper(usuario))) {
+        stop("Solo puede editar sus propias notas y tareas personales.", call. = FALSE)
       }
       detalle <- t$oportunidad_detalle[t$oportunidad_detalle$oportunidad_id == id, , drop = FALSE]
       if (!identical(actual, esperado$fila) || (tipo == "oportunidad" && !identical(detalle, esperado$detalle))) {

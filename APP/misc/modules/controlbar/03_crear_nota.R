@@ -153,9 +153,9 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
 
     observeEvent(input$crear, {
       pendiente(NULL)
-      if (!.gestion_autorizada(session$user, session$groups)) {
-        return(racafeForms::racafeNotify(session, "Acceso restringido",
-                                        "La captura requiere una cuenta autorizada para gestión.", type = "warning"))
+      if (!.crm_usuario_autenticado(session$user)) {
+        return(racafeForms::racafeNotify(session, "Sesión sin usuario autenticado",
+                                        "Abra el CRM desde Analítica y vuelva a iniciar sesión para guardar notas o tareas.", type = "warning"))
       }
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")

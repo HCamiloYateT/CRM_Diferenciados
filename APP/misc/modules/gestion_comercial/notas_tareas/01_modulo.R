@@ -37,7 +37,7 @@ TableroTareasUI <- function(id) {
 }
 
 .tablero_notas_actuar <- function(raiz, id, accion, usuario, grupos = character()) {
-  if (!.gestion_autorizada(usuario, grupos)) {
+  if (!.crm_usuario_autenticado(usuario)) {
     stop("La cuenta no tiene permiso para modificar gestión.", call. = FALSE)
   }
   .gestion_actualizar(raiz, function(t) {
@@ -103,8 +103,9 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     })
     acciones <- function(fila) {
       disponibles <- c(abrir = "Abrir detalle")
-      if (!.gestion_autorizada(usuario, grupos)) return(disponibles)
-      c(disponibles, editar = "Editar",
+      if (!.crm_usuario_autenticado(usuario)) return(disponibles)
+      editar_propio <- is.na(fila$PerCod) || .gestion_autorizada(usuario, grupos)
+      c(disponibles, if (editar_propio) c(editar = "Editar"),
         if (fila$Archivado) c(desarchivar = "Desarchivar") else c(archivar = "Archivar"),
         if (fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"),
         eliminar = "Eliminar")
