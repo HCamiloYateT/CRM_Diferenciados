@@ -36,10 +36,10 @@ CrearNotasUI <- function(id) {
         "input.tipo === 'SEGUIMIENTO'", ns = ns,
         racafeForms::racafeFormGroup(
           racafeForms::racafeInputDate("seguimiento", "Fecha de cumplimiento", value = .HoyProductos() + 1L,
-                                       min = .HoyProductos(), required = TRUE, ns = ns),
-          uiOutput(ns("asignacion"))
+                                       min = .HoyProductos(), required = TRUE, ns = ns)
         )
       ),
+      racafeForms::racafeFormGroup(uiOutput(ns("asignacion")), divider = FALSE),
       racafeForms::racafeFormGroup(
         if (.etiquetas_notas_corporativas()) {
           racafeModulos::ListaDesplegableAgregableUI(ns("etiquetas"))
@@ -81,12 +81,12 @@ CrearNotasUI <- function(id) {
     racafeForms::racafeInfoItem("TIPO", if (tarea) "TAREA" else "NOTA"),
     racafeForms::racafeInfoItem("TÍTULO", campos$asunto),
     racafeForms::racafeInfoItem("DESCRIPCIÓN", if (is.na(descripcion)) "Sin descripción" else descripcion),
-    racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(campos$etiquetas), empty = "Sin etiquetas")
+    racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(campos$etiquetas), empty = "Sin etiquetas"),
+    racafeForms::racafeInfoItem("PRIORIDAD", campos$prioridad)
   )
   if (tarea) {
     detalle <- c(detalle, list(
       racafeForms::racafeInfoItem("FECHA DE CUMPLIMIENTO", .formato_fecha_crm(campos$seguimiento)),
-      racafeForms::racafeInfoItem("PRIORIDAD", campos$prioridad),
       racafeForms::racafeInfoItem("RESPONSABLE", responsable)
     ))
   }
@@ -143,7 +143,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
     output$asignacion <- renderUI({
       racafeForms::racafeFormRow(
         racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
-                                       selected = "MEDIA", empty = FALSE, search = FALSE, ns = ns),
+                                       selected = "MEDIA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
         racafeForms::racafeInputText("responsable", "Responsable", value = usuario(),
                                      disabled = TRUE, ns = ns),
         responsive = "fixed"
@@ -206,21 +206,20 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
       lista <- character()
       cumplidas <- logical()
       campos <- list(tipo = list(label = "Tipo", required = TRUE, kind = "select"),
-                     titulo = list(label = "Título", required = TRUE, kind = "text"))
-      valores <- list(tipo = tipo, titulo = .gestion_texto(input$titulo))
+                     titulo = list(label = "Título", required = TRUE, kind = "text"),
+                     prioridad = list(label = "Prioridad", required = TRUE, kind = "select"))
+      valores <- list(tipo = tipo, titulo = .gestion_texto(input$titulo), prioridad = input$prioridad %||% "")
       reglas <- list(tipo = function(x, valores) {
         if (length(x) == 1L && x %in% c("NOTA", "SEGUIMIENTO")) TRUE else "Seleccione nota o tarea."
       })
+      reglas$prioridad <- function(x, valores) {
+        if (length(x) == 1L && x %in% names(.colores_prioridad_crm)) TRUE else "Seleccione una prioridad válida."
+      }
       if (tarea) {
         campos$seguimiento <- list(label = "Fecha de cumplimiento", required = TRUE, kind = "date")
-        campos$prioridad <- list(label = "Prioridad", required = TRUE, kind = "select")
         valores$seguimiento <- .dp_fecha(as.character(input$seguimiento %||% NA_character_))
-        valores$prioridad <- input$prioridad %||% ""
         reglas$seguimiento <- function(x, valores) {
           if (x >= .HoyProductos()) TRUE else "La fecha no puede ser anterior a hoy."
-        }
-        reglas$prioridad <- function(x, valores) {
-          if (length(x) == 1L && x %in% names(.colores_prioridad_crm)) TRUE else "Seleccione una prioridad válida."
         }
       }
       if (tarea && isTRUE(input$incluir_actividades)) {
@@ -242,7 +241,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
       pendiente(list(tipo = tipo, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = valores$seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
-                     prioridad = if (tarea) valores$prioridad else "MEDIA",
+                     prioridad = valores$prioridad,
                      motivo = if (tarea) "Creación de tarea desde el panel lateral" else
                        "Creación de nota desde el panel lateral",
                      etiquetas = etiquetas_elegidas(), actividades = lista,
