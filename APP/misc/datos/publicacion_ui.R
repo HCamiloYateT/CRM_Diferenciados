@@ -82,6 +82,7 @@
       if (length(filtros$creador)) visibles <- visibles & clave %in% filtros$creador
       pedidos <- pedidos[visibles, , drop = FALSE]
       pedidos$Asesor <- .asesor_nombre(pedidos$PdcUsu, .asesores_catalogo(publicaciones$crm$tablas))
+      pedidos$PdcUsu <- NULL
     }
     if (length(filtros$estado)) pedidos <- pedidos[pedidos$estado_original %in% filtros$estado, , drop = FALSE]
     if (length(filtros$destino)) {

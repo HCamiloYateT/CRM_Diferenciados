@@ -60,8 +60,9 @@ server <- function(input, output, session) {
   )
 
   output$identidad_header <- renderUI({
+    catalogo <- .asesores_catalogo(publicaciones()$crm$tablas)
     tags$span(class = "crm-identidad",
-              tags$span(class = "badge badge-secondary", usuario()),
+              tags$span(class = "badge badge-secondary", .asesor_nombre(usuario(), catalogo)),
               if (length(grupo())) tags$span(`aria-hidden` = "true", "|"),
               lapply(grupo(), function(nombre) tags$span(class = "badge badge-light text-dark", nombre)))
   })
