@@ -72,6 +72,48 @@ CrearNotasUI <- function(id) {
   )
 }
 
+# Confirmación de captura ----
+
+.confirmacion_nota_ui <- function(campos, responsable, ns) {
+  tarea <- identical(campos$tipo, "SEGUIMIENTO")
+  descripcion <- .gestion_texto(campos$resultado)
+  detalle <- list(
+    racafeForms::racafeInfoItem("TIPO", if (tarea) "TAREA" else "NOTA"),
+    racafeForms::racafeInfoItem("TÍTULO", campos$asunto),
+    racafeForms::racafeInfoItem("DESCRIPCIÓN", if (is.na(descripcion)) "Sin descripción" else descripcion),
+    racafeForms::racafeInfoItem("ETIQUETAS", if (length(campos$etiquetas)) {
+      paste(campos$etiquetas, collapse = ", ")
+    } else "Sin etiquetas")
+  )
+  if (tarea) {
+    detalle <- c(detalle, list(
+      racafeForms::racafeInfoItem("FECHA DE CUMPLIMIENTO", .formato_fecha_crm(campos$seguimiento)),
+      racafeForms::racafeInfoItem("PRIORIDAD", campos$prioridad),
+      racafeForms::racafeInfoItem("RESPONSABLE", responsable)
+    ))
+  }
+  contenido <- tagList(
+    tags$p("Revise la información antes de crear el registro."),
+    do.call(racafeForms::racafeInfoGrid, c(detalle, list(columns = 2))),
+    if (tarea && length(campos$actividades)) {
+      tags$div(tags$strong("ACTIVIDADES"), tags$ul(lapply(campos$actividades, function(actividad) {
+        estado <- if (actividad %in% campos$actividades_cumplidas) "Completada" else "Pendiente"
+        tags$li(paste0(actividad, " (", estado, ")"))
+      })))
+    }
+  )
+  if (.disponible_api("racafeShiny", "racafeOverlayLoader")) {
+    contenido <- racafeShiny::racafeOverlayLoader("guardar", contenido, triggers = "confirmar", ns = ns)
+  }
+  racafeForms::racafeModalDetail(
+    title = if (tarea) "Confirmar tarea" else "Confirmar nota", size = "subventana3", contenido,
+    footer = racafeForms::racafeModalFooter(
+      racafeForms::racafeButtonCancel("cancelar", "Cancelar", size = "xs", ns = ns),
+      racafeForms::racafeButton("confirmar", "Crear", icon = "note-sticky", variant = "primary", size = "xs", ns = ns)
+    )
+  )
+}
+
 CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -205,17 +247,24 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
                        "Creación de nota desde el panel lateral",
                      etiquetas = etiquetas_elegidas(), actividades = lista,
                      actividades_cumplidas = lista[cumplidas]))
-      showModal(modalDialog(
-        title = if (tarea) "Confirmar tarea" else "Confirmar nota", tags$p(titulo),
-        footer = tagList(modalButton("Cancelar"), .boton(ns("confirmar"), "Guardar", "check"))
-      ))
+      showModal(.confirmacion_nota_ui(pendiente(), usuario(), ns))
+    })
+
+    observeEvent(input$cancelar, {
+      pendiente(NULL)
+      removeModal()
     })
 
     observeEvent(input$confirmar, {
       campos <- pendiente()
       req(!is.null(campos))
       pendiente(NULL)
-      removeModal()
+      on.exit({
+        if (.disponible_api("racafeShiny", "racafeUpdateOverlayLoader")) {
+          racafeShiny::racafeUpdateOverlayLoader(session, "guardar", FALSE)
+        }
+        removeModal()
+      }, add = TRUE)
       tryCatch({
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = identidad$usuario,
                          clientes = NULL, pedidos = NULL, grupos = identidad$grupos, sesion_local = identidad$local)
