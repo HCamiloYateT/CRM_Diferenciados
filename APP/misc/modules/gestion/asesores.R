@@ -44,8 +44,23 @@
   }, identidad$usuario, "Actualizar catálogo de asesores", clave)
 }
 
+.asesores_filas <- function(pedidos, catalogo) {
+  creadores <- .asesor_usuario(pedidos$PdcUsu)
+  claves <- unique(c(creadores, catalogo$usuario))
+  claves <- claves[!is.na(claves) & grepl("^[A-Z0-9._-]+$", claves)]
+  i <- match(claves, catalogo$usuario)
+  fechas <- pedidos$fecha_creacion %||% rep(as.Date(NA), length(creadores))
+  recientes <- order(fechas, decreasing = TRUE, na.last = NA)
+  ultima <- fechas[recientes[match(claves, creadores[recientes])]]
+  filas <- data.frame(usuario = claves, nombre = .asesor_nombre(claves, catalogo),
+                      correo = ifelse(is.na(i), .asesor_correo(claves), catalogo$correo[i]),
+                      vigente = is.na(i) | catalogo$vigente[i], ultima_creacion = ultima)
+  filas[order(-as.numeric(filas$ultima_creacion), filas$usuario, na.last = TRUE), , drop = FALSE]
+}
+
 .AsesoresUI <- function(id) {
-  racafeForms::racafePanel(title = "Asesores", reactable::reactableOutput(NS(id)("asesores")))
+  racafeForms::racafePanel(title = "Asesores",
+                          racafeModulos::TablaVancouverUI(NS(id)("asesores"), descargable = FALSE))
 }
 
 .AsesoresServer <- function(id, publicaciones, raiz, refrescar) {
@@ -56,39 +71,30 @@
     origen <- reactiveVal(NULL)
     catalogo <- reactive(.asesores_catalogo(publicaciones()$crm$tablas))
     filas <- reactive({
-      pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-      d <- catalogo()
-      claves <- .asesor_usuario(c(pedidos$PdcUsu, d$usuario))
-      claves <- sort(unique(claves[!is.na(claves) & grepl("^[A-Z0-9._-]+$", claves)]))
-      i <- match(claves, d$usuario)
-      data.frame(usuario = claves, nombre = .asesor_nombre(claves, d),
-                 correo = ifelse(is.na(i), .asesor_correo(claves), d$correo[i]),
-                 vigente = is.na(i) | d$vigente[i])
-    })
-    output$asesores <- reactable::renderReactable({
       req(autorizado)
-      reactable::reactable(
-        filas(), searchable = TRUE, compact = TRUE, highlight = TRUE, defaultPageSize = 15,
-        selection = "single", onClick = "select",
-        columns = list(.selection = reactable::colDef(show = FALSE),
-                       usuario = reactable::colDef(name = "Usuario"),
-                       nombre = reactable::colDef(name = "Nombre de la persona"),
-                       correo = reactable::colDef(name = "Correo"),
-                       vigente = reactable::colDef(name = "Activo", cell = function(value) {
-                         racafeForms::racafeStatusBadge(if (value) "Sí" else "No",
-                                                       variant = if (value) "success" else "neutral")
-                       }))
+      .asesores_filas(.tabla_fuente(publicaciones(), "pedidos"), catalogo())
+    })
+    tabla <- racafeModulos::TablaVancouverServer(
+      "asesores", data = filas, id_col = "usuario", modo_seleccion = "fila", descargable = FALSE,
+      col_specs = list(
+        usuario = list(name = "Usuario"),
+        nombre = list(name = "Nombre de la persona"),
+        correo = list(name = "Correo"),
+        vigente = list(name = "Activo", cell = function(valor) {
+          racafeForms::racafeStatusBadge(if (valor) "Sí" else "No",
+                                        variant = if (valor) "success" else "neutral")
+        }),
+        ultima_creacion = list(name = "Última creación de pedido", cell = function(fecha) {
+          if (is.na(fecha)) "—" else .formato_fecha_crm(fecha)
+        })
       )
-    })
-    observeEvent(reactable::getReactableState("asesores", "selected"), {
+    )
+    observeEvent(tabla$seleccion(), {
       req(autorizado)
-      seleccion <- reactable::getReactableState("asesores", "selected")
-      d <- filas()
-      req(length(seleccion) == 1L, seleccion %in% seq_len(nrow(d)))
-      fila <- d[seleccion, , drop = FALSE]
+      fila <- tabla$seleccion()$fila
       anterior <- catalogo()
       origen(list(clave = fila$usuario, fila = anterior[anterior$usuario == fila$usuario, , drop = FALSE]))
-      reactable::updateReactable("asesores", selected = NA)
+      tabla$limpiar()
       showModal(racafeForms::racafeModalDetail(
         title = paste("Editar asesor", fila$usuario), size = "subventana3",
         racafeForms::racafeForm(
