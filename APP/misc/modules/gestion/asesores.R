@@ -83,8 +83,11 @@
 
 .AsesoresUI <- function(id) {
   ns <- NS(id)
-  racafeForms::racafePanel(title = "Asesores", uiOutput(ns("alta")),
-                          racafeModulos::TablaVancouverUI(NS(id)("asesores"), descargable = FALSE))
+  div(class = "row",
+      div(class = "col-12 col-xl-9 mb-3",
+          div(class = "font-weight-bold mb-1", "Personas"),
+          racafeModulos::TablaVancouverUI(ns("asesores"), descargable = FALSE),
+          uiOutput(ns("alta"))))
 }
 
 .AsesoresServer <- function(id, publicaciones, raiz, refrescar) {
@@ -96,25 +99,46 @@
     eliminar <- reactiveVal(NULL)
     output$alta <- renderUI({
       req(autorizado)
-      racafeForms::racafeButton("anadir", "Añadir asesor", icon = "plus", ns = ns)
+      tagList(div(class = "small text-muted mt-1", "Catálogo independiente, sin jerarquía"),
+              racafeForms::racafeFormFooter(
+                racafeForms::racafeButton("anadir", "Nueva opción", icon = "plus",
+                                          variant = "secondary", size = "xs", ns = ns),
+                align = "right"
+              ))
     })
     catalogo <- reactive(.asesores_catalogo(publicaciones()$crm$tablas))
     filas <- reactive({
       req(autorizado)
       d <- .asesores_filas(.tabla_fuente(publicaciones(), "pedidos"), catalogo(),
                            .gestion_filas(publicaciones()$crm$tablas, "asesores_orden"))
+      d$numero <- seq_len(nrow(d))
       d$acciones <- d$usuario
       d
     })
     boton_accion <- function(clave, accion, titulo, icono) {
       evento <- jsonlite::toJSON(ns("accion"), auto_unbox = TRUE)
       valor <- jsonlite::toJSON(list(usuario = clave, tipo = accion), auto_unbox = TRUE)
-      tags$button(type = "button", class = "btn btn-link btn-sm", title = titulo, `aria-label` = titulo,
-                  onclick = sprintf("Shiny.setInputValue(%s,%s,{priority:'event'});", evento, valor), icon(icono))
+      variante <- if (accion == "eliminar") "danger" else "secondary"
+      tagAppendAttributes(
+        racafeForms::racafeButton(paste("fila", accion, clave, sep = "_"), NULL, icon = icono,
+                                  variant = variante, size = "xxs", title = titulo, ns = ns),
+        `aria-label` = titulo, onclick = sprintf("Shiny.setInputValue(%s,%s,{priority:'event'});", evento, valor),
+        style = paste0("height:19px;min-height:19px;width:19px;min-width:19px;padding:0;",
+                       "font-size:10px;line-height:17px;margin:0;border-radius:50%;")
+      )
     }
     tabla <- racafeModulos::TablaVancouverServer(
       "asesores", data = filas, id_col = "usuario", modo_seleccion = "fila", descargable = FALSE, sortable = FALSE,
+      tabla_fn = function(datos, ...) {
+        tabla <- racafeShiny::gt_minimal_style(gt::gt(datos))
+        tabla <- gt::cols_move_to_start(tabla, columns = "numero")
+        gt::tab_options(tabla, table.width = gt::pct(100), table.font.size = gt::px(11),
+                        data_row.padding = gt::px(1), column_labels.padding = gt::px(2),
+                        table_body.hlines.style = "none", row.striping.include_table_body = FALSE)
+      },
       col_specs = list(
+        numero = list(name = "#", align = "center", minWidth = 28,
+                      format = list(digits = 0, separators = FALSE)),
         usuario = list(name = "Usuario"),
         nombre = list(name = "Nombre de la persona"),
         correo = list(name = "Correo"),
@@ -125,12 +149,13 @@
         ultima_creacion = list(name = "Última creación de pedido", cell = function(fecha) {
           if (is.na(fecha)) "—" else .formato_fecha_crm(fecha)
         }),
-        acciones = list(name = "Acciones", cell = function(clave) {
-          tagList(boton_accion(clave, "subir", "Subir", "arrow-up"),
-                  boton_accion(clave, "bajar", "Bajar", "arrow-down"),
-                  if (!identical(clave, .asesor_provisional)) {
-                    boton_accion(clave, "eliminar", "Eliminar", "trash")
-                  })
+        acciones = list(name = "Acciones", cell = function(clave, indice) {
+          tags$span(class = "d-inline-flex align-items-center", style = "gap:3px;white-space:nowrap;",
+                    if (indice > 1L) boton_accion(clave, "subir", "Subir", "arrow-up"),
+                    if (indice < nrow(filas())) boton_accion(clave, "bajar", "Bajar", "arrow-down"),
+                    if (!identical(clave, .asesor_provisional)) {
+                      boton_accion(clave, "eliminar", "Eliminar", "trash")
+                    })
         })
       )
     )
