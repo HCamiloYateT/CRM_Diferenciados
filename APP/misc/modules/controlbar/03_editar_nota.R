@@ -75,6 +75,7 @@
       observadores[[clave]] <<- NULL
       estados[[clave]] <- NULL
       output[[paste0("estado_actividad_", indice)]] <- NULL
+      output[[paste0("fecha_actividad_", indice)]] <- NULL
     }
     observar_fila <- function(indice, cumplida = FALSE, fecha = as.POSIXct(NA_character_)) {
       force(indice)
@@ -83,6 +84,13 @@
       estados[[clave]] <- list(cumplida = cumplida, fecha = fecha)
       output[[paste0("estado_actividad_", indice)]] <- renderUI({
         .boton_estado_actividad(ns, boton, isTRUE(estados[[clave]]$cumplida))
+      })
+      output[[paste0("fecha_actividad_", indice)]] <- renderUI({
+        estado <- estados[[clave]]
+        if (!isTRUE(estado$cumplida)) return(NULL)
+        fecha <- .formato_fecha_crm(estado$fecha)
+        tags$small(class = "d-block text-muted mt-1", role = "status",
+                   if (is.na(fecha)) "Fecha de cumplimiento sin registrar" else paste("Cumplida el", fecha))
       })
       observadores[[clave]] <<- list(
         observeEvent(input[[boton]], {
@@ -104,7 +112,9 @@
     }
     output$actividades <- renderUI({
       d <- filas()
-      lapply(seq_len(nrow(d)), function(i) .actividad_nota_ui(ns, d$id[i], i, d$texto[i]))
+      lapply(seq_len(nrow(d)), function(i) {
+        .actividad_nota_ui(ns, d$id[i], i, d$texto[i], uiOutput(ns(paste0("fecha_actividad_", d$id[i]))))
+      })
     })
     observeEvent(input$agregar, {
       secuencia <<- secuencia + 1L
@@ -148,6 +158,13 @@
         title = if (tarea) "Editar tarea" else "Editar nota", size = "subventana3",
         racafeForms::racafeForm(
           racafeForms::racafeInfoItem("Título", fila$asunto),
+          racafeForms::racafeFormRow(
+            racafeForms::racafeInfoItem("Creado por", fila$Creador),
+            racafeForms::racafeInfoItem("Fecha de creación", format(fila$Creada, "%d/%m/%y"),
+                                       empty = "Fecha sin registrar"),
+            racafeForms::racafeInfoItem("Asignado a", fila$responsable),
+            columns = 3L, responsive = "auto"
+          ),
           racafeForms::racafeInfoItem("Descripción", fila$resultado),
           racafeForms::racafeInfoItem("Comentarios", .comentarios_nota_ui(comentarios, fila$tarea_id),
                                      empty = "Sin comentarios"),

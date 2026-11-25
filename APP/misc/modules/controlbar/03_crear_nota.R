@@ -5,11 +5,11 @@
     .disponible_api("racafeModulos", "ListaDesplegableAgregable")
 }
 
-.actividad_nota_ui <- function(ns, id, numero = id, valor = "") {
+.actividad_nota_ui <- function(ns, id, numero = id, valor = "", detalle = NULL) {
   div(id = ns(paste0("fila_", id)), class = "nota-actividad-row",
       div(class = "nota-actividad-texto",
           racafeForms::racafeInputText(paste0("actividad_", id), label = NULL, value = valor,
-                                       placeholder = paste("Actividad", numero), ns = ns)),
+                                       placeholder = paste("Actividad", numero), ns = ns), detalle),
       div(class = "nota-actividad-accion", uiOutput(ns(paste0("estado_actividad_", id)))),
       div(class = "nota-actividad-accion",
           racafeForms::racafeButton(paste0("quitar_", id), label = NULL, icon = "trash", title = "Eliminar actividad",
