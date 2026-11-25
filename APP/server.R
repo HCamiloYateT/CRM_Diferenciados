@@ -19,9 +19,8 @@ server <- function(input, output, session) {
   filtros <- Filtros("Filtros", publicaciones)
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
-  sesion <- .crm_identidad_notas(session)
-  identidad <- toupper(sesion$usuario %||% "HCYATE")
-  grupos <- toupper(sesion$grupos %||% "ANALÍTICA")
+  usuario <- reactive(toupper(session$user %||% "HCYATE"))
+  grupo <- reactive(toupper(session$groups %||% "ANALÍTICA"))
 
   refrescar_gestion <- function() {
     actualizado <- isolate(publicaciones())
@@ -39,7 +38,7 @@ server <- function(input, output, session) {
 
   # Outputs ----
   ## Controlbar ----
-  CrearNotas("CrearNota", publicaciones, .raiz_crm, refrescar_gestion)
+  CrearNotas("CrearNota", publicaciones, .raiz_crm, refrescar_gestion, usuario = usuario)
   observeEvent(input$control_contacto, abrir_accion("contacto"))
   observeEvent(input$control_oportunidad, abrir_accion("oportunidad"))
   observeEvent(input$control_muestra, abrir_accion("muestra"))
@@ -62,9 +61,9 @@ server <- function(input, output, session) {
 
   output$identidad_header <- renderUI({
     tags$span(class = "crm-identidad",
-              tags$span(class = "badge badge-secondary", identidad),
-              if (length(grupos)) tags$span(`aria-hidden` = "true", "|"),
-              lapply(grupos, function(grupo) tags$span(class = "badge badge-light text-dark", grupo)))
+              tags$span(class = "badge badge-secondary", usuario()),
+              if (length(grupo())) tags$span(`aria-hidden` = "true", "|"),
+              lapply(grupo(), function(nombre) tags$span(class = "badge badge-light text-dark", nombre)))
   })
 
   ### Indicadores, notas y tareas ----
