@@ -13,6 +13,12 @@ TableroTareasUI <- function(id) {
           racafeForms::racafeInputText("buscar", "Buscar", placeholder = "Título, descripción o actividad", ns = ns),
           uiOutput(ns("filtro_etiquetas")), responsive = "auto"
         ),
+        racafeForms::racafeFormRow(
+          racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
+                                         multiple = TRUE, empty_label = "Todas", ns = ns),
+          racafeForms::racafeInputSelect("tipo", "Tipo", c("Todos" = "", "Nota" = "text", "Tarea" = "list"),
+                                         ns = ns), responsive = "auto"
+        ),
         div(class = "crm-tareas-switches",
             racafeForms::racafeInputSwitch("archivadas", "Incluir archivadas", ns = ns),
             racafeForms::racafeInputSwitch("cumplidas", "Incluir cumplidas", ns = ns)),
@@ -36,12 +42,18 @@ TableroTareasUI <- function(id) {
   d$Tipo <- ifelse(d$tipo == "NOTA", "text", "list")
   d$Cumplido <- d$Tipo == "list" & d$estado == "REALIZADA"
   d$Archivado <- d$tarea_id %in% archivo$tarea_id | d$estado == "CANCELADA"
+  d$Vencida <- d$Tipo == "list" & !d$Cumplido & !d$Archivado &
+    !is.na(d$seguimiento) & d$seguimiento < .HoyProductos()
   d[order(d$seguimiento, -as.numeric(d$fecha), na.last = TRUE), , drop = FALSE]
 }
 
 .tablero_notas_actuar <- function(raiz, id, accion, usuario, grupos = character(), sesion_local = FALSE) {
   if (!.crm_usuario_autenticado(usuario)) {
     stop("La cuenta no tiene permiso para modificar gestión.", call. = FALSE)
+  }
+  if (!accion %in% c("archivar", "desarchivar", "cumplir")) stop("Acción no permitida.", call. = FALSE)
+  if (accion == "cumplir" && (sesion_local || !.crm_es_admin(usuario, grupos))) {
+    stop("Solo un administrador puede marcar la tarea como cumplida.", call. = FALSE)
   }
   .gestion_actualizar(raiz, function(t) {
     d <- .tablero_notas_datos(t, usuario, grupos, sesion_local)
@@ -58,11 +70,7 @@ TableroTareasUI <- function(id) {
     if (accion == "cumplir" && fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) {
       t$tareas$estado[posicion] <- "REALIZADA"
     }
-    if (accion == "eliminar") {
-      for (tabla in c("tarea_prioridad", "tarea_etiquetas", "tarea_actividades", "tarea_archivo", "tareas")) {
-        t[[tabla]] <- t[[tabla]][t[[tabla]]$tarea_id != id, , drop = FALSE]
-      }
-    } else t$tareas$actualizada[posicion] <- Sys.time()
+    t$tareas$actualizada[posicion] <- Sys.time()
     t
   }, usuario, paste("Tablero de notas y tareas", accion), id)
 }
@@ -80,6 +88,7 @@ TableroTareasUI <- function(id) {
     title = fila$asunto, size = "subventana3",
     tags$p(fila$resultado), tags$p(fila$responsable),
     tags$p(.formato_fecha_crm(fila$seguimiento)),
+    .comentarios_nota_ui(.gestion_filas(tablas, "tarea_comentarios"), fila$tarea_id),
     racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(etiquetas$etiqueta[etiquetas$tarea_id %in% fila$tarea_id]),
                                empty = "Sin etiquetas"),
     if (length(actividades$textos)) tags$ul(lapply(seq_along(actividades$textos), function(i) {
@@ -89,14 +98,41 @@ TableroTareasUI <- function(id) {
   )
 }
 
+.resumen_tarjeta_nota <- function(fila, actividades) {
+  total <- length(actividades$textos)
+  avance <- sum(actividades$cumplidas)
+  color <- if (fila$Vencida) "text-danger" else if (fila$Cumplido) "text-success" else "text-muted"
+  tagList(
+    if (fila$Archivado) tags$span(title = "Archivada", class = "text-muted mr-2", icon("archive"), " Archivada"),
+    if (fila$Cumplido) tags$span(title = "Cumplida", class = "text-success", icon("circle-check"), " Cumplida"),
+    if (!is.na(fila$seguimiento)) tags$div(class = color,
+      icon("calendar"), " ", .formato_fecha_crm(fila$seguimiento), if (fila$Vencida) " · Vencida"),
+    if (total) div(
+      tags$small(sprintf("%d de %d actividades", avance, total)),
+      div(class = "progress", tags$div(class = "progress-bar bg-success", role = "progressbar",
+          `aria-label` = "Actividades cumplidas", `aria-valuenow` = avance, `aria-valuemin` = 0,
+          `aria-valuemax` = total, style = sprintf("width: %.2f%%;", 100 * avance / total)))
+    )
+  )
+}
+
 TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     pendiente <- reactiveVal(NULL)
+    solo_vencidas <- reactiveVal(character())
     identidad <- .crm_identidad_notas(session)
     usuario <- identidad$usuario %||% character()
     grupos <- identidad$grupos
+    admin <- !identidad$local && .crm_es_admin(usuario, grupos)
     tablas <- reactive(publicaciones()$crm$tablas)
+    for (prioridad in names(.colores_prioridad_crm)) local({
+      columna <- prioridad
+      observeEvent(input[[paste0("vencidas_", columna)]], {
+        activas <- solo_vencidas()
+        solo_vencidas(if (columna %in% activas) setdiff(activas, columna) else c(activas, columna))
+      })
+    })
     notas <- reactive(.tablero_notas_datos(tablas(), usuario, grupos, identidad$local))
     etiquetas <- reactive(.gestion_filas(tablas(), "tarea_etiquetas"))
     lista <- reactive(.gestion_filas(tablas(), "tarea_actividades"))
@@ -111,6 +147,9 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       d <- notas()
       if (!isTRUE(input$archivadas)) d <- d[!d$Archivado, , drop = FALSE]
       if (!isTRUE(input$cumplidas)) d <- d[!d$Cumplido, , drop = FALSE]
+      if (length(input$prioridad)) d <- d[d$Prioridad %in% input$prioridad, , drop = FALSE]
+      if (nzchar(input$tipo %||% "")) d <- d[d$Tipo %in% input$tipo, , drop = FALSE]
+      d <- d[!d$Prioridad %in% solo_vencidas() | d$Vencida, , drop = FALSE]
       if (length(input$etiquetas)) {
         e <- etiquetas()
         sin_etiqueta <- if ("__sin__" %in% input$etiquetas) setdiff(d$tarea_id, e$tarea_id) else character()
@@ -126,37 +165,58 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     acciones <- function(fila) {
       disponibles <- c(abrir = "Abrir detalle")
       if (!.crm_usuario_autenticado(usuario)) return(disponibles)
-      editar_propio <- is.na(fila$PerCod) || .gestion_autorizada(usuario, grupos)
-      c(disponibles, if (editar_propio) c(editar = "Editar"),
+      c(disponibles, editar = "Editar",
         if (fila$Archivado) c(desarchivar = "Desarchivar") else c(archivar = "Archivar"),
-        if (fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"),
-        eliminar = "Eliminar")
+        if (admin && fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"))
     }
     output$tablero <- renderUI({
       d <- seleccion()
       colores <- .colores_prioridad_crm
-      if (.disponible_api("racafeModulos", "TableroTareasTarjetas") &&
-          "acciones_fn" %in% names(formals(racafeModulos::TableroTareasTarjetas))) {
-        return(racafeModulos::TableroTareasTarjetas(
-          d, names(colores), actividades_fn = function(fila) actividades(fila$tarea_id), ns = ns,
-          campos = c(id = "tarea_id", titulo = "asunto", descripcion = "resultado", prioridad = "Prioridad",
-                     responsable = "responsable", tipo = "Tipo", cumplido = "Cumplido", archivado = "Archivado",
-                     vencimiento = "seguimiento"),
-          acciones_fn = acciones, colores = colores, nota_fn = .nota, arrastrable = FALSE
-        ))
+      prioridades <- if (length(input$prioridad)) intersect(names(colores), input$prioridad) else names(colores)
+      corporativo <- all(vapply(c("TarjetaKanbanUI", "ColumnaKanbanUI", "TableroKanbanUI", "MenuAccionesUI"),
+                               function(api) .disponible_api("racafeModulos", api), logical(1)))
+      columnas <- lapply(prioridades, function(prioridad) {
+        filas <- d[d$Prioridad == prioridad, , drop = FALSE]
+        activa <- prioridad %in% solo_vencidas()
+        filtro <- tagAppendAttributes(
+          racafeForms::racafeButton(paste0("vencidas_", prioridad), NULL, icon = "filter", size = "xxs",
+                                    title = "Filtrar vencidas", variant = if (activa) "primary" else "secondary",
+                                    ns = ns),
+          `aria-label` = paste("Filtrar vencidas", prioridad), `aria-pressed` = tolower(as.character(activa))
+        )
+        tarjetas <- lapply(seq_len(nrow(filas)), function(i) {
+          fila <- filas[i, , drop = FALSE]
+          resumen <- .resumen_tarjeta_nota(fila, actividades(fila$tarea_id))
+          if (!corporativo) return(div(class = "mb-2", strong(fila$asunto), resumen, tags$p(fila$resultado)))
+          menu <- racafeModulos::MenuAccionesUI(fila$tarea_id, acciones(fila), ns = ns, id_evento = "AccionTarea",
+                                                id_grupo = ns(paste0("acciones_tarea_", fila$tarea_id)))
+          responsable <- fila$responsable
+          if (is.na(responsable) || !nzchar(responsable)) responsable <- "Sin responsable"
+          tarjeta <- racafeModulos::TarjetaKanbanUI(
+            fila$asunto, responsables = racafeForms::racafeStatusBadge(responsable, size = "xs"),
+            contexto = if (fila$Tipo == "list") "TAREA" else "NOTA",
+            cuerpo = tags$p(fila$resultado), menu = menu, color = colores[[prioridad]]
+          )
+          htmltools::tagAppendChild(tarjeta, resumen)
+        })
+        if (!corporativo) return(div(class = "crm-panel", h2(prioridad), filtro, tarjetas))
+        colapsar <- tags$button(type = "button", class = "kb-collapse-toggle", `data-kb-toggle` = "true",
+                                title = paste("Colapsar", prioridad), `aria-expanded` = "true", icon("chevron-down"))
+        tags$div(class = "kpb-slot", `data-kb-stage` = prioridad,
+                 racafeModulos::ColumnaKanbanUI(prioridad, cantidad = nrow(filas), color = colores[[prioridad]],
+                   header_filled = FALSE, acciones = tagList(filtro, colapsar),
+                   cuerpo = if (length(tarjetas)) tagList(tarjetas) else .nota("Sin registros en esta prioridad.")))
+      })
+      if (corporativo) {
+        tablero <- racafeModulos::TableroKanbanUI(columnas, ns = ns)
+        return(tagAppendAttributes(tablero, class = "rm-task-board-shared"))
       }
       div(
         if (nrow(d)) racafeForms::racafeFormRow(
           selectInput(ns("registro"), "Registro", setNames(d$tarea_id, d$asunto)),
           uiOutput(ns("operaciones")), responsive = "fixed"
         ),
-        div(class = "crm-kpis", lapply(names(colores), function(prioridad) {
-        filas <- d[d$Prioridad == prioridad, , drop = FALSE]
-        div(class = "crm-panel", h2(prioridad), lapply(seq_len(nrow(filas)), function(i) {
-          div(class = "mb-2", strong(filas$asunto[i]),
-              tags$p(filas$resultado[i]), tags$small(if (filas$tipo[i] == "NOTA") "Nota" else "Tarea"))
-        }))
-        }))
+        div(class = "crm-kpis", columnas)
       )
     })
     output$operaciones <- renderUI({
@@ -171,23 +231,25 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       d <- seleccion()
       fila <- d[d$tarea_id %in% evento$codigo, , drop = FALSE]
       req(nrow(fila) == 1L, evento$accion %in% names(acciones(fila)))
-      if (evento$accion == "editar") return(editar("tarea", origen = fila$tarea_id))
+      if (evento$accion == "editar") return(editar(fila))
       if (evento$accion == "abrir") return(showModal(.detalle_nota_ui(fila, tablas())))
       pendiente(list(id = fila$tarea_id, accion = evento$accion))
-      showModal(modalDialog(title = acciones(fila)[[evento$accion]], fila$asunto,
-                            footer = tagList(modalButton("Cancelar"), .boton(ns("confirmar"), "Confirmar", "check"))))
+      titulo <- switch(evento$accion, archivar = "¿Archivar este registro?",
+                       desarchivar = "¿Desarchivar este registro?", cumplir = "¿Marcar la tarea como cumplida?")
+      racafeForms::racafeConfirm(session, "confirmar", titulo, fila$asunto, ns = ns)
     }
     observeEvent(input$AccionTarea, actuar(input$AccionTarea))
     observeEvent(input$ejecutar, actuar(list(codigo = input$registro, accion = input$operacion)))
     observeEvent(input$confirmar, {
       evento <- pendiente()
-      req(!is.null(evento))
       pendiente(NULL)
-      removeModal()
+      req(isTRUE(input$confirmar), !is.null(evento))
       tryCatch({
         .tablero_notas_actuar(raiz, evento$id, evento$accion, usuario, grupos, identidad$local)
         refrescar()
-        racafeForms::racafeNotify(session, "Registro actualizado", type = "success")
+        mensaje <- switch(evento$accion, archivar = "Registro archivado", desarchivar = "Registro desarchivado",
+                          cumplir = "Tarea marcada como cumplida")
+        racafeForms::racafeNotify(session, mensaje, type = "success")
       }, error = function(e) {
         racafeForms::racafeNotify(session, "No se pudo actualizar el registro", conditionMessage(e), type = "error")
       })

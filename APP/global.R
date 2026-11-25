@@ -54,7 +54,7 @@ for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publica
                    "modules/encabezado/00_header.R", "modules/encabezado/01_tabla_indicadores.R",
                    "modules/encabezado/02_notificaciones_tareas.R",
                    "modules/controlbar/01_filtros.R", "modules/controlbar/03_crear_nota.R",
-                   "modules/gestion_comercial/notas_tareas/01_modulo.R")) {
+                   "modules/gestion_comercial/notas_tareas/01_modulo.R", "modules/controlbar/03_editar_nota.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
 }
 

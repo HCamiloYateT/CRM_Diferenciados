@@ -38,7 +38,7 @@ server <- function(input, output, session) {
 
   # Outputs ----
   ## Controlbar ----
-  CrearNotas("CrearNota", publicaciones, .raiz_crm, refrescar_gestion, usuario = usuario)
+  editar_nota <- CrearNotas("CrearNota", publicaciones, .raiz_crm, refrescar_gestion, usuario = usuario)
   observeEvent(input$control_contacto, abrir_accion("contacto"))
   observeEvent(input$control_oportunidad, abrir_accion("oportunidad"))
   observeEvent(input$control_muestra, abrir_accion("muestra"))
@@ -80,7 +80,7 @@ server <- function(input, output, session) {
 
   ### Gestión comercial ----
   .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
-  TableroTareas("notas", publicaciones, .raiz_crm, refrescar_gestion, capturar)
+  TableroTareas("notas", publicaciones, .raiz_crm, refrescar_gestion, editar_nota)
   for (id in names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar)
 
   ### Productos ----

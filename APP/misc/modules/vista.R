@@ -162,8 +162,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
         output$grafico <- plotly::renderPlotly({
           dat <- serie()
           validate(need(!is.null(dat) && nrow(dat), "Serie no disponible para esta selección."))
-          dat$etiqueta <- factor(.formato_fecha_crm(dat$etiqueta, mes = TRUE),
-                                 levels = .formato_fecha_crm(unique(dat$etiqueta), mes = TRUE))
+          dat$etiqueta <- .formato_fecha_crm(dat$etiqueta, mes = TRUE)
           p <- plotly::plot_ly(dat, x = ~etiqueta, y = ~total, color = ~grupo, type = "bar",
                                colors = c("#B8261C", "#37545A", "#7C5E38", "#505A77"),
                                hovertemplate = "%{x}<br>%{y}<extra>%{fullData.name}</extra>")
@@ -171,7 +170,8 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
             racafeGraph::tema_racafe_plotly()
           } else list()
           ejes <- list(barmode = "group", showlegend = length(unique(dat$grupo)) > 1L,
-                       xaxis = list(title = "", automargin = TRUE), yaxis = list(title = "Cantidad"))
+                       xaxis = list(title = "", automargin = TRUE, type = "category", categoryorder = "array",
+                                    categoryarray = unique(dat$etiqueta)), yaxis = list(title = "Cantidad"))
           do.call(plotly::layout, c(list(p), utils::modifyList(tema, ejes)))
         })
       } else {
