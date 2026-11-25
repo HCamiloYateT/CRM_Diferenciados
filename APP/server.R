@@ -80,6 +80,8 @@ server <- function(input, output, session) {
 
   ### Gestión comercial ----
   .PresupuestoCeroServer("presupuesto_cero", operativo, publicaciones)
+  TableroTareas("notas", publicaciones, .raiz_crm, refrescar_gestion, capturar)
+  TableroTareas("tareas", publicaciones, .raiz_crm, refrescar_gestion, capturar)
   for (id in names(.gestion_vistas)) GestionServer(id, publicaciones, operativo, capturar)
 
   ### Productos ----
@@ -90,7 +92,7 @@ server <- function(input, output, session) {
 
   ### Operación y consultas ----
   for (id in names(.operacion_vistas)) OperacionServer(id, publicaciones, operativo, filtros)
-  consultas <- setdiff(names(.vistas), c("resumen", names(.operacion_vistas), names(.gestion_vistas)))
+  consultas <- setdiff(names(.vistas), c("resumen", "notas", "tareas", names(.operacion_vistas), names(.gestion_vistas)))
   for (id in consultas) {
     VistaServer(id, .vistas[[id]], publicaciones, operativo, filtros, abrir_accion, cargando, navegar)
   }

@@ -25,9 +25,7 @@ CrearNotasUI <- function(id) {
                                          selected = "NOTA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
           racafeForms::racafeInputText("titulo", "Título", required = TRUE, ns = ns),
           responsive = "fixed"
-        ),
-        conditionalPanel("input.tipo === 'SEGUIMIENTO'", ns = ns,
-                         div(class = "crm-nota-selectize", .selector_clientes(ns("cliente"), "Cliente")))
+        )
       ),
       racafeForms::racafeFormGroup(
         racafeForms::racafeInputTextArea("descripcion", "Descripción", rows = 4, ns = ns)
@@ -78,11 +76,6 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
     siguiente_actividad <- 1L
     observadores <- list()
     limpiar_etiquetas <- reactiveVal(FALSE)
-    clientes <- reactive(.tabla_fuente(publicaciones(), "clientes"))
-
-    observeEvent(clientes(), {
-      .actualizar_selector_clientes(session, "cliente", clientes(), input$cliente)
-    }, ignoreNULL = FALSE)
 
     etiquetas_modulo <- if (.etiquetas_notas_corporativas()) {
       racafeModulos::ListaDesplegableAgregable("etiquetas", label = "Etiquetas", choices = character(),
@@ -144,10 +137,8 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       titulo <- .gestion_texto(input$titulo)
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")
-      cliente <- if (tarea) .gestion_texto(input$cliente) else NA_character_
       seguimiento <- if (tarea) .dp_fecha(as.character(input$seguimiento %||% NA_character_)) else as.Date(NA)
       condiciones <- c(
-        "Seleccione un cliente del corte operacional." = tarea && !cliente %in% clientes()$PerCod,
         "Ingrese el título." = is.na(titulo),
         "Seleccione nota o tarea." = !tipo %in% c("NOTA", "SEGUIMIENTO"),
         "Seleccione una fecha de cumplimiento válida." = tarea && (is.na(seguimiento) || seguimiento < .HoyProductos())
@@ -162,7 +153,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
         lista <- vapply(actividades(), function(i) .gestion_texto(input[[paste0("actividad_", i)]]), character(1))
         cumplidas <- vapply(actividades(), function(i) isTRUE(input[[paste0("cumplida_", i)]]), logical(1))
       }
-      pendiente(list(PerCod = cliente, tipo = tipo, asunto = titulo, resultado = input$descripcion,
+      pendiente(list(tipo = tipo, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
                      prioridad = if (tarea) input$prioridad else "MEDIA",
@@ -182,9 +173,8 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       pendiente(NULL)
       removeModal()
       tryCatch({
-        pedidos <- .tabla_fuente(publicaciones(), "pedidos")
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = session$user,
-                         clientes = clientes(), pedidos = pedidos)
+                         clientes = NULL, pedidos = NULL)
         for (indice in actividades()) quitar_actividad(indice)
         shinyWidgets::updateMaterialSwitch(session, "incluir_actividades", value = FALSE)
         limpiar_etiquetas(TRUE)

@@ -3,7 +3,8 @@
 .body_crm <- function() {
   tabs <- lapply(names(.vistas), function(id) {
     vista <- .vistas[[id]]
-    contenido <- if (id %in% names(.operacion_vistas)) OperacionUI(id) else
+    contenido <- if (id %in% c("notas", "tareas")) TableroTareasUI(id) else
+      if (id %in% names(.operacion_vistas)) OperacionUI(id) else
       if (id %in% names(.gestion_vistas)) GestionUI(id, vista$titulo) else VistaUI(id, vista)
     bs4TabItem(tabName = id, .formulario_crm(contenido))
   })

@@ -36,7 +36,9 @@
       requeridos = character()),
     tarea_actividades = contrato(c("tarea_id", "orden"),
       data.frame(tarea_id = ch, PerCod = ch, orden = integer(), actividad = ch, cumplida = logical()),
-      list(ref("tareas", "tarea_id"))),
+      list(ref("tareas", "tarea_id")), requeridos = character()),
+    tarea_archivo = contrato("tarea_id", data.frame(tarea_id = ch, estado = ch),
+      list(ref("tareas", "tarea_id")), requeridos = "estado"),
     contactos = contrato("contacto_id", data.frame(contacto_id = ch, PerCod = ch, nombre = ch,
       correo = ch, telefono = ch, preferencia_calidad = ch))
   )
@@ -118,7 +120,8 @@
   }
   nota <- tipo == "tarea" && identical(campos$tipo, "NOTA")
   cliente <- .gestion_texto(campos$PerCod)
-  if ((!nota || !is.na(cliente)) && !cliente %in% clientes$PerCod) {
+  sin_cliente <- tipo == "tarea" && (nota || identical(campos$tipo, "SEGUIMIENTO"))
+  if ((!sin_cliente || !is.na(cliente)) && !cliente %in% clientes$PerCod) {
     stop("Elija un código de cliente del corte operacional.", call. = FALSE)
   }
   id <- if (is.null(origen)) basename(tempfile(paste0(tipo, "-"))) else origen
@@ -192,7 +195,8 @@
     if (tipo == "tarea") {
       prioridad <- .gestion_texto(campos$prioridad)
       if (is.na(prioridad)) prioridad <- "MEDIA"
-      prioridad <- .gestion_dominio(prioridad, c("ALTA", "MEDIA", "BAJA"))
+      if (prioridad == "ALTA") prioridad <- "IMPORTANTE"
+      prioridad <- .gestion_dominio(prioridad, names(.colores_prioridad_crm))
       t$tarea_prioridad <- .gestion_upsert(t$tarea_prioridad,
                                           data.frame(tarea_id = id, PerCod = cliente, prioridad = prioridad), "tarea_id")
       etiquetas <- unique(trimws(as.character(campos$etiquetas)))
