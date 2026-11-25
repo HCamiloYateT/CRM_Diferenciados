@@ -11,13 +11,11 @@ TableroTareasUI <- function(id) {
         )),
         racafeForms::racafeFormRow(
           racafeForms::racafeInputText("buscar", "Buscar", placeholder = "Título, descripción o actividad", ns = ns),
-          uiOutput(ns("filtro_etiquetas")), responsive = "auto"
-        ),
-        racafeForms::racafeFormRow(
+          uiOutput(ns("filtro_etiquetas")),
           racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
                                          multiple = TRUE, empty_label = "Todas", ns = ns),
           racafeForms::racafeInputSelect("tipo", "Tipo", c("Todos" = "", "Nota" = "text", "Tarea" = "list"),
-                                         ns = ns), responsive = "auto"
+                                         ns = ns), columns = 4L, responsive = "fixed"
         ),
         div(class = "crm-tareas-switches",
             racafeForms::racafeInputSwitch("archivadas", "Incluir archivadas", ns = ns),
@@ -75,6 +73,12 @@ TableroTareasUI <- function(id) {
   d$Prioridad <- prioridades$prioridad[match(d$tarea_id, prioridades$tarea_id)]
   d$Prioridad[d$Prioridad %in% "ALTA"] <- "IMPORTANTE"
   d$Prioridad[!d$Prioridad %in% names(.colores_prioridad_crm)] <- "MEDIA"
+  creacion <- .gestion_filas(tablas, "tarea_creacion")
+  indice <- match(d$tarea_id, creacion$tarea_id)
+  d$Creador <- creacion$autor[indice]
+  d$Creador[is.na(indice)] <- d$responsable[is.na(indice)]
+  d$Creada <- as.Date(creacion$fecha[indice], tz = "America/Bogota")
+  d$Creada[is.na(indice)] <- d$fecha[is.na(indice)]
   d$Tipo <- ifelse(d$tipo == "NOTA", "text", "list")
   d$Cumplido <- d$Tipo == "list" & d$estado == "REALIZADA"
   d$Archivado <- d$tarea_id %in% archivo$tarea_id | d$estado == "CANCELADA"
@@ -111,26 +115,36 @@ TableroTareasUI <- function(id) {
   }, usuario, paste("Tablero de notas y tareas", accion), id)
 }
 
-.actividades_nota_lista <- function(datos, id) {
+.actividades_nota_lista <- function(datos, id, fechas = .gestion_filas(NULL, "tarea_actividad_cumplimiento")) {
   filas <- datos[datos$tarea_id %in% id, , drop = FALSE]
   filas <- filas[order(filas$orden), , drop = FALSE]
-  list(textos = filas$actividad, cumplidas = filas$cumplida)
+  fechas <- fechas[fechas$tarea_id %in% id, , drop = FALSE]
+  list(textos = filas$actividad, cumplidas = filas$cumplida, fechas = fechas$fecha[match(filas$orden, fechas$orden)])
 }
 
-.detalle_nota_ui <- function(fila, tablas) {
-  actividades <- .actividades_nota_lista(.gestion_filas(tablas, "tarea_actividades"), fila$tarea_id)
-  etiquetas <- .gestion_filas(tablas, "tarea_etiquetas")
-  racafeForms::racafeModalDetail(
-    title = fila$asunto, size = "subventana3",
-    tags$p(fila$resultado), tags$p(fila$responsable),
-    tags$p(.formato_fecha_crm(fila$seguimiento)),
-    .comentarios_nota_ui(.gestion_filas(tablas, "tarea_comentarios"), fila$tarea_id),
-    racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(etiquetas$etiqueta[etiquetas$tarea_id %in% fila$tarea_id]),
-                               empty = "Sin etiquetas"),
-    if (length(actividades$textos)) tags$ul(lapply(seq_along(actividades$textos), function(i) {
-      texto <- actividades$textos[i]
-      tags$li(if (actividades$cumplidas[i]) tags$del(texto) else texto)
-    }))
+.detalle_nota_ui <- function(fila, actividades, etiquetas, comentarios) {
+  fecha <- format(fila$Creada, "%d/%m/%y")
+  tagList(
+    racafeForms::racafeInfoItem("Creado por", fila$Creador),
+    racafeForms::racafeInfoItem("El", fecha, empty = "Fecha sin registrar"),
+    racafeForms::racafeInfoItem("Asignado a", fila$responsable),
+    if (!is.na(fila$resultado) && nzchar(fila$resultado)) racafeForms::racafeInfoItem("Descripción", fila$resultado),
+    racafeForms::racafeInfoItem("Cronología de comentarios", .comentarios_nota_ui(comentarios, fila$tarea_id),
+                               empty = "Sin comentarios"),
+    racafeForms::racafeInfoItem("Etiquetas", .etiquetas_crm_ui(etiquetas), empty = "Sin etiquetas"),
+    if (fila$Tipo == "list") racafeForms::racafeInfoItem(
+      "Actividades",
+      if (length(actividades$textos)) tags$ul(class = "list-unstyled mb-0",
+        lapply(seq_along(actividades$textos), function(i) {
+          texto <- actividades$textos[i]
+          if (!actividades$cumplidas[i]) return(tags$li(icon("circle"), " ", texto))
+          fecha_cumplida <- .formato_fecha_crm(actividades$fechas[i])
+          tags$li(icon("circle-check", class = "text-success"), " ", texto,
+                  tags$small(class = "d-block text-muted",
+                             if (is.na(fecha_cumplida)) "Fecha de cumplimiento sin registrar" else fecha_cumplida))
+        })),
+      empty = "Sin actividades"
+    )
   )
 }
 
@@ -186,13 +200,22 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     etiquetas <- reactive(.gestion_filas(tablas(), "tarea_etiquetas"))
     lista <- reactive({
       d <- .gestion_filas(tablas(), "tarea_actividades")
-      d <- d[order(d$orden), , drop = FALSE]
+      split(d, d$tarea_id)
+    })
+    cumplimiento <- reactive({
+      d <- .gestion_filas(tablas(), "tarea_actividad_cumplimiento")
       split(d, d$tarea_id)
     })
     actividades <- function(id) {
-      d <- lista()[[id]]
-      list(textos = d$actividad %||% character(), cumplidas = d$cumplida %||% logical())
+      d <- lista()[[id]] %||% .gestion_filas(NULL, "tarea_actividades")
+      fechas <- cumplimiento()[[id]] %||% .gestion_filas(NULL, "tarea_actividad_cumplimiento")
+      .actividades_nota_lista(d, id, fechas)
     }
+    comentarios <- reactive({
+      d <- .gestion_filas(tablas(), "tarea_comentarios")
+      split(d, d$tarea_id)
+    })
+    etiquetas_tarjeta <- reactive(split(etiquetas()$etiqueta, etiquetas()$tarea_id))
     output$filtro_etiquetas <- renderUI({
       opciones <- sort(unique(etiquetas()$etiqueta[etiquetas()$tarea_id %in% notas()$tarea_id]))
       racafeForms::racafeInputSelect("etiquetas", "Etiquetas", c("Sin etiqueta" = "__sin__", opciones),
@@ -219,18 +242,19 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       d
     })
     acciones <- function(fila) {
-      disponibles <- c(abrir = "Abrir detalle")
-      if (!.crm_usuario_autenticado(usuario)) return(disponibles)
-      c(disponibles, editar = "Editar",
+      if (!.crm_usuario_autenticado(usuario)) return(character())
+      c(editar = "Editar",
         if (fila$Archivado) c(desarchivar = "Desarchivar") else c(archivar = "Archivar"),
         if (admin && fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"))
     }
-    tarjeta_ui <- function(fila, lista) {
+    tarjeta_ui <- function(fila, lista, etiquetas, comentarios) {
       resumen <- .resumen_tarjeta_nota(fila, lista)
-      if (!corporativo) return(div(class = "mb-2", strong(fila$asunto), resumen, tags$p(fila$resultado)))
-      iconos <- c(abrir = "eye", editar = "pen", archivar = "archive", desarchivar = "box-open", cumplir = "check")
+      detalle <- .detalle_nota_ui(fila, lista, etiquetas, comentarios)
+      if (!corporativo) return(div(class = "mb-2", tags$details(tags$summary(fila$asunto), detalle), resumen))
+      iconos <- c(editar = "pen", archivar = "archive", desarchivar = "box-open", cumplir = "check")
       config <- lapply(iconos, function(icono) list(icono = icono, color = "#495057"))
-      menu <- racafeModulos::MenuAccionesUI(fila$tarea_id, acciones(fila), config = config, ns = ns,
+      opciones <- acciones(fila)
+      menu <- if (length(opciones)) racafeModulos::MenuAccionesUI(fila$tarea_id, opciones, config = config, ns = ns,
                                             id_evento = "AccionTarea",
                                             id_grupo = ns(paste0("acciones_tarea_", fila$tarea_id)))
       responsable <- fila$responsable
@@ -238,7 +262,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       tarjeta <- racafeModulos::TarjetaKanbanUI(
         fila$asunto, responsables = racafeForms::racafeStatusBadge(responsable, size = "xs"),
         contexto = if (fila$Tipo == "list") "TAREA" else "NOTA",
-        cuerpo = tags$p(fila$resultado), menu = menu, color = .colores_prioridad_crm[[fila$Prioridad]]
+        cuerpo = detalle, menu = menu, color = .colores_prioridad_crm[[fila$Prioridad]]
       )
       htmltools::tagAppendChild(tarjeta, resumen)
     }
@@ -249,7 +273,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       output[[id]] <- renderUI({
         datos <- contenido()
         req(datos)
-        tarjeta_ui(datos$fila, datos$lista)
+        tarjeta_ui(datos$fila, datos$lista, datos$etiquetas, datos$comentarios)
       })
       insertUI(ancla, "beforeBegin", uiOutput(ns(id)), immediate = TRUE)
       tarjetas[[clave]] <- list(id = id, contenido = contenido, prioridad = prioridad)
@@ -272,12 +296,15 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
         ancla <- paste0("#", ns(paste0("fin_", prioridad)))
         for (i in rev(seq_len(nrow(filas)))) {
           fila <- filas[i, c("tarea_id", "asunto", "resultado", "responsable", "seguimiento",
-                             "Tipo", "Prioridad", "Cumplido", "Archivado", "Vencida"), drop = FALSE]
+                             "Creador", "Creada", "Tipo", "Prioridad", "Cumplido", "Archivado", "Vencida"), drop = FALSE]
           rownames(fila) <- NULL
           clave <- fila$tarea_id
           if (is.null(tarjetas[[clave]])) montar_tarjeta(clave, prioridad, ancla)
           tarjeta <- tarjetas[[clave]]
-          tarjeta$contenido(list(fila = fila, lista = actividades(clave)))
+          historia <- comentarios()[[clave]] %||% .gestion_filas(NULL, "tarea_comentarios")
+          rownames(historia) <- NULL
+          tarjeta$contenido(list(fila = fila, lista = actividades(clave), etiquetas = etiquetas_tarjeta()[[clave]],
+                                 comentarios = historia))
           ancla <- paste0("#", ns(tarjeta$id))
         }
       }
@@ -287,6 +314,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       fila <- d[d$tarea_id %in% input$registro, , drop = FALSE]
       if (!nrow(fila)) return(NULL)
       opciones <- acciones(fila)
+      if (!length(opciones)) return(NULL)
       tagList(selectInput(ns("operacion"), "Acción", setNames(names(opciones), opciones)),
               .boton(ns("ejecutar"), "Abrir acción", "arrow-right"))
     })
@@ -295,7 +323,6 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       fila <- d[d$tarea_id %in% evento$codigo, , drop = FALSE]
       req(nrow(fila) == 1L, evento$accion %in% names(acciones(fila)))
       if (evento$accion == "editar") return(editar(fila))
-      if (evento$accion == "abrir") return(showModal(.detalle_nota_ui(fila, tablas())))
       pendiente(list(id = fila$tarea_id, accion = evento$accion))
       titulo <- switch(evento$accion, archivar = "¿Archivar este registro?",
                        desarchivar = "¿Desarchivar este registro?", cumplir = "¿Marcar la tarea como cumplida?")
