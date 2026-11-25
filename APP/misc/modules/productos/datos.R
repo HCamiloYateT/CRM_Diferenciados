@@ -18,9 +18,6 @@
     datos <- datos[which(fechas >= periodo[1L] & fechas <= periodo[2L]), , drop = FALSE]
   }
   if (length(filtros$destino)) datos <- datos[datos$pais %in% filtros$destino, , drop = FALSE]
-  if (length(filtros$asesores_inactivos)) {
-    datos <- datos[!.asesor_usuario(datos$creador) %in% filtros$asesores_inactivos, , drop = FALSE]
-  }
   if (length(filtros$creador)) {
     datos <- datos[.asesor_usuario(datos$creador) %in% filtros$creador, , drop = FALSE]
   }

@@ -17,6 +17,8 @@
   list(
     asesores = contrato("usuario", data.frame(usuario = ch, nombre = ch, correo = ch, vigente = logical()),
                          requeridos = c("nombre", "correo", "vigente")),
+    asesores_orden = contrato("usuario", data.frame(usuario = ch, orden = integer(), eliminado = logical()),
+                               requeridos = "eliminado"),
     oportunidades = .prod_contrato_oportunidad(),
     oportunidad_detalle = contrato("oportunidad_id",
       data.frame(oportunidad_id = ch, PerCod = ch, asunto = ch, producto = ch, sacos = numeric(),
