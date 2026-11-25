@@ -25,11 +25,12 @@
 
 # La unidad conserva un estilo neutro incluso dentro de una celda con tendencia.
 .IndicadorCelda <- function(valor) {
+  if (is.na(valor) || !nzchar(valor)) return("")
   separador <- regexpr(" [^ ]+/[^ ]+$", valor)
   if (is.na(separador) || separador < 1L) return(htmltools::htmlEscape(valor))
   as.character(shiny::tagList(substr(valor, 1L, separador - 1L), " ",
-                             shiny::tags$span(class = "crm-indicador-unidad",
-                                              substring(valor, separador + 1L))))
+                             shiny::tags$strong(class = "crm-indicador-unidad font-weight-bold",
+                                                substring(valor, separador + 1L))))
 }
 
 .TablaIndicadoresHTML <- function(datos, colores, encabezado = TRUE) {
@@ -72,22 +73,26 @@ ComparacionIndicadoresUI <- function(id) {
     gt::gt_output(ns("tabla"))
   } else shiny::uiOutput(ns("tabla"))
   shiny::div(class = "crm-vista", shiny::h1("Comparación de Indicadores"),
-             shiny::div(class = "crm-indicadores-filtros", fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1),
-                        fecha("fecha_actual", "Fecha final", .HoyIndicadores())),
+             shiny::div(class = "d-flex flex-wrap align-items-end mb-3",
+                        shiny::div(class = "mr-3", style = "width:220px;max-width:100%;",
+                                   fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1)),
+                        shiny::div(style = "width:220px;max-width:100%;",
+                                   fecha("fecha_actual", "Fecha final", .HoyIndicadores()))),
              racafeForms::racafeFormFooter(
                racafeForms::racafeButton("actualizar", "Actualizar", icon = "sync", ns = ns,
                                          variant = "primary", size = "xxs"), align = "right"),
              .CargaIndicadoresUI(ns, shiny::div(class = "crm-panel", tabla, shiny::uiOutput(ns("estado")))))
 }
 
-.FormatoComparacionIndicadores <- function(datos) {
+.FormatoComparacionIndicadores <- function(datos, inicio, fin) {
   porcentaje <- ifelse(is.finite(datos$Variacion_Porcentual),
-                        paste0(formatC(100 * datos$Variacion_Porcentual, digits = 2, format = "f"), "%"), "—")
+                        paste0(formatC(100 * datos$Variacion_Porcentual, digits = 2, format = "f"), "%"), "")
   tabla <- data.frame("Indicador" = sub(" \\([^()]+/[^()]+\\)$", "", datos$Nombre_Indicador),
                       "Valor inicial" = .FormatearIndicadores(datos$Valor_Anterior, datos$Indicador),
                       "Valor final" = .FormatearIndicadores(datos$Valor_Actual, datos$Indicador),
                       "Diferencia" = .FormatearIndicadores(datos$Diferencia_Absoluta, datos$Indicador),
                       "Variación" = porcentaje, check.names = FALSE)
+  names(tabla)[2:3] <- paste(c("Valor inicial", "Valor final"), .formato_fecha_crm(c(inicio, fin)), sep = " · ")
   color <- function(x) ifelse(x > 0, .IND_COLORES_TENDENCIA[["sube"]],
                               ifelse(x < 0, .IND_COLORES_TENDENCIA[["baja"]], NA_character_))
   colores <- cbind(matrix(NA_character_, nrow(tabla), 3L), color(datos$Diferencia_Absoluta),
@@ -130,18 +135,26 @@ ComparacionIndicadores <- function(id, activo, vigentes) {
         return(.nota(mensaje, "error"))
       }
       if (is.null(valor)) return(NULL)
-      .nota(paste("Fecha inicial", .formato_fecha_crm(valor$inicio), "· CRMINDICADORES.",
-                  "Fecha final", .formato_fecha_crm(valor$fin), "·", paste0(valor$fuente, ".")))
+      inicio <- .formato_fecha_crm(valor$inicio)
+      fin <- .formato_fecha_crm(valor$fin)
+      referencia <- if (isTRUE(valor$vigente)) {
+        sprintf("Para el %s, mostramos los valores de mercado disponibles al momento de la consulta.", fin)
+      } else {
+        sprintf("Para el %s, usamos los valores registrados ese día.", fin)
+      }
+      .nota(paste(sprintf("La comparación parte de los valores registrados el %s.", inicio), referencia,
+                  "Las celdas vacías indican que faltan datos para mostrar el valor o calcular el cambio."))
     })
     presentacion <- shiny::reactive({
       valor <- resultado()
       shiny::req(!is.null(valor), !inherits(valor, "error"))
-      .FormatoComparacionIndicadores(valor$datos)
+      .FormatoComparacionIndicadores(valor$datos, valor$inicio, valor$fin)
     })
     if (.IndicadoresGT("racafeTableVancouver")) {
       output$tabla <- gt::render_gt({
         vista <- presentacion()
-        tabla <- racafeShiny::racafeTableVancouver(vista$datos, font_size = 11, row_padding = 3, min_width = "620px")
+        tabla <- racafeShiny::racafeTableVancouver(vista$datos, font_size = 12, row_padding = 4,
+                                                   align = c("left", rep("right", 4L)), min_width = "620px")
         .ColorearIndicadoresGT(tabla, vista$datos, vista$colores)
       })
     } else {
