@@ -66,10 +66,12 @@
 ComparacionIndicadoresUI <- function(id) {
   ns <- shiny::NS(id)
   fecha <- function(id, etiqueta, valor) {
-    if (.disponible_api("racafeForms", "racafeInputDate")) {
-      return(racafeForms::racafeInputDate(id, label = etiqueta, value = valor, ns = ns))
+    campo <- if (.disponible_api("racafeForms", "racafeInputDate")) {
+      racafeForms::racafeInputDate(id, label = etiqueta, value = valor, ns = ns)
+    } else {
+      shiny::dateInput(ns(id), etiqueta, value = valor, max = .HoyIndicadores(), language = "es", format = "dd/mm/yyyy")
     }
-    shiny::dateInput(ns(id), etiqueta, value = valor, max = .HoyIndicadores(), language = "es", format = "dd/mm/yyyy")
+    shiny::tagAppendAttributes(campo, class = "mb-0")
   }
   tabla <- if (.IndicadoresGT("racafeTableVancouver")) {
     gt::gt_output(ns("tabla"))
@@ -81,7 +83,7 @@ ComparacionIndicadoresUI <- function(id) {
                           fecha("fecha_anterior", "Fecha inicial", .HoyIndicadores() - 1)),
                shiny::div(style = "width:220px;max-width:100%;",
                           fecha("fecha_actual", "Fecha final", .HoyIndicadores())),
-               shiny::div(class = "d-flex align-items-center", style = "height:38px;",
+               shiny::div(class = "d-flex align-items-center", style = "height:var(--rf-control-height, 36px);",
                           shiny::tagAppendAttributes(
                             racafeForms::racafeButton("actualizar", label = NULL, icon = "arrows-rotate",
                                                       title = "Actualizar indicadores", variant = "primary",
