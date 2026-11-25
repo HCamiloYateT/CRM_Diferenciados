@@ -97,3 +97,12 @@
 .bootstrap-select > .dropdown-menu > .inner {
   background-color: #fff;
 }
+
+/* Selectize hereda form-control también en el menú, que debe crecer con sus opciones. */
+.rf-form .crm-nota-selectize .selectize-dropdown.form-control {
+  height: auto !important; min-height: 0 !important; padding: 0 !important;
+  border-radius: .4rem !important; overflow: hidden;
+}
+.rf-form .crm-nota-selectize .selectize-dropdown-content {
+  max-height: 13rem; overflow-y: auto;
+}
