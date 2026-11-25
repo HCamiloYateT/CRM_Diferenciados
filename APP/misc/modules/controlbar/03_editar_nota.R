@@ -7,7 +7,7 @@
   if (.disponible_api("racafeModulos", "TimelineUI")) {
     eventos <- data.frame(Fecha = as.Date(d$fecha, tz = "America/Bogota"), Evento = d$autor,
                           Descripcion = d$comentario, Usuario = substring(.formato_fecha_crm(d$fecha), 12L))
-    return(racafeModulos::TimelineUI(eventos))
+    return(racafeModulos::TimelineUI(eventos, max_height = 180, agrupar = TRUE))
   }
   tags$ul(class = "list-unstyled", lapply(seq_len(nrow(d)), function(i) {
     tags$li(tags$strong(d$autor[i]), " · ", .formato_fecha_crm(d$fecha[i]), tags$p(d$comentario[i]))
@@ -89,7 +89,7 @@
         estado <- estados[[clave]]
         if (!isTRUE(estado$cumplida)) return(NULL)
         fecha <- .formato_fecha_crm(estado$fecha)
-        tags$small(class = "d-block text-muted mt-1", role = "status",
+        tags$small(class = "d-block text-muted text-nowrap", role = "status",
                    if (is.na(fecha)) "Fecha de cumplimiento sin registrar" else paste("Cumplida el", fecha))
       })
       observadores[[clave]] <<- list(
@@ -113,7 +113,8 @@
     output$actividades <- renderUI({
       d <- filas()
       lapply(seq_len(nrow(d)), function(i) {
-        .actividad_nota_ui(ns, d$id[i], i, d$texto[i], uiOutput(ns(paste0("fecha_actividad_", d$id[i]))))
+        fecha <- uiOutput(ns(paste0("fecha_actividad_", d$id[i])), inline = TRUE, class = "flex-shrink-0 ml-2")
+        .actividad_nota_ui(ns, d$id[i], i, d$texto[i], fecha)
       })
     })
     observeEvent(input$agregar, {
@@ -166,7 +167,7 @@
             columns = 3L, responsive = "auto"
           ),
           racafeForms::racafeInfoItem("Descripción", fila$resultado),
-          racafeForms::racafeInfoItem("Comentarios", .comentarios_nota_ui(comentarios, fila$tarea_id),
+          racafeForms::racafeInfoItem("Cronología de comentarios", .comentarios_nota_ui(comentarios, fila$tarea_id),
                                      empty = "Sin comentarios"),
           racafeForms::racafeInputTextArea("comentario", "Añadir comentario", rows = 3, ns = ns),
           if (tarea) div(class = "nota-actividades-contenedor",
