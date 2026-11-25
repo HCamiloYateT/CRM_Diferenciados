@@ -6,12 +6,14 @@
 }
 
 .actividad_nota_ui <- function(ns, id) {
-  div(id = ns(paste0("fila_", id)), class = "crm-nota-actividad",
-      checkboxInput(ns(paste0("cumplida_", id)), "Cumplida"),
-      racafeForms::racafeInputText(paste0("actividad_", id), "Actividad", placeholder = "Describa la actividad",
-                                   ns = ns),
-      racafeForms::racafeButton(paste0("quitar_", id), label = NULL, icon = "trash", title = "Eliminar actividad",
-                                variant = "danger", size = "xxs", ns = ns))
+  div(id = ns(paste0("fila_", id)), class = "nota-actividad-row",
+      div(class = "nota-actividad-texto",
+          racafeForms::racafeInputText(paste0("actividad_", id), label = NULL,
+                                       placeholder = paste("Actividad", id), ns = ns)),
+      div(class = "nota-actividad-accion", uiOutput(ns(paste0("estado_actividad_", id)))),
+      div(class = "nota-actividad-accion",
+          racafeForms::racafeButton(paste0("quitar_", id), label = NULL, icon = "trash", title = "Eliminar actividad",
+                                    variant = "danger", size = "xxs", ns = ns)))
 }
 
 CrearNotasUI <- function(id) {
@@ -52,9 +54,11 @@ CrearNotasUI <- function(id) {
           racafeForms::racafeInputSwitch("incluir_actividades", "Incluir lista de actividades", ns = ns),
           conditionalPanel(
             "input.incluir_actividades", ns = ns,
-            div(class = "d-flex justify-content-end",
-                racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus", size = "xxs", ns = ns)),
-            div(id = ns("lista_actividades"), .actividad_nota_ui(ns, 1L))
+            div(class = "nota-actividades-contenedor",
+                div(class = "nota-actividades-header",
+                    racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus",
+                                              variant = "primary", size = "xxs", ns = ns)),
+                div(id = ns("lista_actividades"), .actividad_nota_ui(ns, 1L)))
           )
         )
       ),
@@ -73,6 +77,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
     ns <- session$ns
     pendiente <- reactiveVal(NULL)
     actividades <- reactiveVal(1L)
+    estados_actividad <- reactiveValues()
     siguiente_actividad <- 1L
     observadores <- list()
     limpiar_etiquetas <- reactiveVal(FALSE)
@@ -105,19 +110,36 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
     quitar_actividad <- function(indice) {
       if (length(actividades()) == 1L) {
         updateTextInput(session, paste0("actividad_", indice), value = "")
-        updateCheckboxInput(session, paste0("cumplida_", indice), value = FALSE)
+        estados_actividad[[as.character(indice)]] <- FALSE
         return(invisible(NULL))
       }
       removeUI(selector = paste0("#", ns(paste0("fila_", indice))), immediate = TRUE)
       actividades(setdiff(actividades(), indice))
       clave <- as.character(indice)
-      observadores[[clave]]$destroy()
+      for (observador in observadores[[clave]]) observador$destroy()
+      estados_actividad[[clave]] <- NULL
+      output[[paste0("estado_actividad_", indice)]] <- NULL
       observadores[[clave]] <<- NULL
     }
     observar_actividad <- function(indice) {
       force(indice)
-      observadores[[as.character(indice)]] <<- observeEvent(input[[paste0("quitar_", indice)]],
-                                                            quitar_actividad(indice), ignoreNULL = TRUE)
+      clave <- as.character(indice)
+      boton <- paste0("cumplida_", indice)
+      output[[paste0("estado_actividad_", indice)]] <- renderUI({
+        cumplida <- isTRUE(estados_actividad[[clave]])
+        titulo <- if (cumplida) "Marcar como pendiente" else "Marcar como cumplida"
+        tagAppendAttributes(
+          racafeForms::racafeButton(boton, label = NULL, icon = if (cumplida) "rotate-left" else "check",
+                                    title = titulo, variant = "primary", size = "xxs", ns = ns),
+          `aria-label` = titulo, `aria-pressed` = if (cumplida) "true" else "false"
+        )
+      })
+      observadores[[clave]] <<- list(
+        observeEvent(input[[paste0("quitar_", indice)]], quitar_actividad(indice)),
+        observeEvent(input[[boton]], {
+          estados_actividad[[clave]] <- !isTRUE(estados_actividad[[clave]])
+        })
+      )
     }
     observar_actividad(1L)
     observeEvent(input$agregar_actividad, {
@@ -151,7 +173,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       cumplidas <- logical()
       if (tarea && isTRUE(input$incluir_actividades)) {
         lista <- vapply(actividades(), function(i) .gestion_texto(input[[paste0("actividad_", i)]]), character(1))
-        cumplidas <- vapply(actividades(), function(i) isTRUE(input[[paste0("cumplida_", i)]]), logical(1))
+        cumplidas <- vapply(actividades(), function(i) isTRUE(estados_actividad[[as.character(i)]]), logical(1))
       }
       pendiente(list(tipo = tipo, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = seguimiento,
