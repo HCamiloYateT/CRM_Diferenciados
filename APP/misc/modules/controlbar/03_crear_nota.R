@@ -59,9 +59,6 @@ CrearNotasUI <- function(id) {
           )
         )
       ),
-      racafeForms::racafeFormGroup(
-        racafeForms::racafeInputText("motivo", "Motivo del registro", required = TRUE, ns = ns)
-      ),
       racafeForms::racafeFormFooter(
         racafeForms::racafeButton("crear", "Crear nota o tarea", icon = "note-sticky",
                                   variant = "primary", size = "xs", ns = ns),
@@ -145,14 +142,12 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       }
       cliente <- .gestion_texto(input$cliente)
       titulo <- .gestion_texto(input$titulo)
-      motivo <- .gestion_texto(input$motivo)
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")
       seguimiento <- if (tarea) .dp_fecha(as.character(input$seguimiento %||% NA_character_)) else as.Date(NA)
       condiciones <- c(
         "Seleccione un cliente del corte operacional." = !cliente %in% clientes()$PerCod,
         "Ingrese el título." = is.na(titulo),
-        "Ingrese el motivo del registro." = is.na(motivo),
         "Seleccione nota o tarea." = !tipo %in% c("NOTA", "SEGUIMIENTO"),
         "Seleccione una fecha de cumplimiento válida." = tarea && (is.na(seguimiento) || seguimiento < .HoyProductos())
       )
@@ -169,7 +164,9 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       pendiente(list(PerCod = cliente, tipo = tipo, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
-                     prioridad = if (tarea) input$prioridad else "MEDIA", motivo = motivo,
+                     prioridad = if (tarea) input$prioridad else "MEDIA",
+                     motivo = if (tarea) "Creación de tarea desde el panel lateral" else
+                       "Creación de nota desde el panel lateral",
                      etiquetas = etiquetas_elegidas(), actividades = lista,
                      actividades_cumplidas = lista[cumplidas]))
       showModal(modalDialog(
@@ -193,7 +190,6 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
         al_guardar()
         updateTextInput(session, "titulo", value = "")
         updateTextAreaInput(session, "descripcion", value = "")
-        updateTextInput(session, "motivo", value = "")
         showNotification("Registro guardado.", type = "message")
       }, error = function(e) showNotification(conditionMessage(e), type = "error"))
     })
