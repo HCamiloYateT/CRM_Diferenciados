@@ -25,23 +25,24 @@
   "COMRobusta" = "Precio Robusta (Compras)"
 )[.IND_CLAVES_CANON]
 
-.IND_NOMBRES_COMPARACION <- c(
-  "TRM" = "TRM ($COP/USD)",
-  "PrecioNY" = "Precio NYC (HT) (¢USD/lb)",
-  "PrecioCarga" = "Precio Carga ($COP/carga)",
-  "Diferencial" = "Diferencial de Compra (HT) ($USD/lb)",
-  "UGCRacafe" = "UGC Racafé ($COP/kg)",
-  "PrecioBolsa" = "Precio Bolsa FNC (¢USD/lb)",
-  "PrecioFNC" = "Precio FNC ($COP/carga)",
-  "UGCFNC" = "UGC FNC ($COP/kg)",
-  "CALConsumo" = "CAL Consumo ($COP/kg)",
-  "COMConsumo" = "COM Consumo ($COP/kg)",
-  "CALPasilla" = "CAL Pasilla ($COP/kg)",
-  "COMMolidos" = "COM Molidos ($COP/kg)",
-  "COMSoluble" = "COM Soluble ($COP/kg)",
-  "CALRipio" = "CAL Ripio ($COP/kg)",
-  "COMRipio" = "COM Ripio ($COP/kg)",
-  "COMRobusta" = "COM Robusta ($COP/kg)"
+# Rótulos para la comparación y el menú. Los nombres cortos se usan para empatar las fuentes.
+.IND_NOMBRES_VISIBLES <- c(
+  TRM = "Tasa representativa del mercado (hoja de trabajo)",
+  PrecioNY = "Cotización del café en Nueva York (hoja de trabajo)",
+  PrecioCarga = "Precio por carga · promedio de las últimas entradas del día",
+  Diferencial = "Diferencial de compra de café (hoja de trabajo)",
+  UGCRacafe = "Costo estimado por kilo de UGQ (Racafé)",
+  PrecioBolsa = "Cotización del café en bolsa publicada por la FNC",
+  PrecioFNC = "Precio de referencia por carga publicado por la FNC",
+  UGCFNC = "Costo estimado por kilo de UGQ a partir del precio FNC",
+  CALConsumo = "Precio de café consumo (calculadora)",
+  COMConsumo = "Precio de compra de café consumo",
+  CALPasilla = "Precio de café pasilla (calculadora)",
+  COMMolidos = "Precio de compra de café para molidos",
+  COMSoluble = "Precio de compra de café para soluble",
+  CALRipio = "Precio de café ripio (calculadora)",
+  COMRipio = "Precio de compra de café ripio",
+  COMRobusta = "Precio de compra de café robusta"
 )[.IND_CLAVES_CANON]
 
 .IND_COLORES_TENDENCIA <- c(

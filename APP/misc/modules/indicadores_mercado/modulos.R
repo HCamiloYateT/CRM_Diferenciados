@@ -87,7 +87,7 @@ ComparacionIndicadoresUI <- function(id) {
 .FormatoComparacionIndicadores <- function(datos, inicio, fin) {
   porcentaje <- ifelse(is.finite(datos$Variacion_Porcentual),
                         paste0(formatC(100 * datos$Variacion_Porcentual, digits = 2, format = "f"), "%"), "")
-  tabla <- data.frame("Indicador" = sub(" \\([^()]+/[^()]+\\)$", "", datos$Nombre_Indicador),
+  tabla <- data.frame("Indicador" = datos$Nombre_Indicador,
                       "Valor inicial" = .FormatearIndicadores(datos$Valor_Anterior, datos$Indicador),
                       "Valor final" = .FormatearIndicadores(datos$Valor_Actual, datos$Indicador),
                       "Diferencia" = .FormatearIndicadores(datos$Diferencia_Absoluta, datos$Indicador),

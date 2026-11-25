@@ -246,7 +246,7 @@
   diferencia <- actual - anterior
   variacion <- diferencia / abs(anterior)
   variacion[!is.finite(variacion)] <- NA_real_
-  data.frame(Indicador = claves, Nombre_Indicador = unname(.IND_NOMBRES_COMPARACION[claves]),
+  data.frame(Indicador = claves, Nombre_Indicador = unname(.IND_NOMBRES_VISIBLES[claves]),
              Valor_Anterior = anterior, Valor_Actual = actual,
              Diferencia_Absoluta = diferencia, Variacion_Porcentual = variacion, row.names = NULL)
 }
