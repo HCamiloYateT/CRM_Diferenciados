@@ -17,7 +17,8 @@
   etiquetas <- etiquetas[!is.na(etiquetas) & nzchar(etiquetas)]
   if (!length(etiquetas)) return(NULL)
   tags$ul(class = "crm-etiquetas list-unstyled d-flex flex-wrap mb-0", lapply(etiquetas, function(etiqueta) {
-    tags$li(racafeForms::racafeStatusBadge(etiqueta, variant = "info", size = "sm"))
+    tags$li(class = "mr-1 mb-1", tags$span(class = "badge font-weight-normal",
+      style = "background:#e1ecf4;color:#284f6c;font-size:.78rem;", etiqueta))
   }))
 }
 

@@ -29,6 +29,8 @@
       fecha = fecha, seguimiento = fecha, estado = ch, oportunidad_id = ch, muestra_id = ch, responsable = ch,
       actualizada = instante), list(ref("oportunidades", "oportunidad_id"), ref("muestras", "muestra_id")),
       requeridos = "tipo"),
+    tarea_creacion = contrato("tarea_id", data.frame(tarea_id = ch, autor = ch, fecha = instante),
+      list(ref("tareas", "tarea_id")), requeridos = c("autor", "fecha")),
     tarea_prioridad = contrato("tarea_id", data.frame(tarea_id = ch, PerCod = ch, prioridad = ch),
       list(ref("tareas", "tarea_id")), requeridos = "prioridad"),
     tarea_etiquetas = contrato(c("tarea_id", "etiqueta"),
@@ -37,6 +39,9 @@
     tarea_actividades = contrato(c("tarea_id", "orden"),
       data.frame(tarea_id = ch, PerCod = ch, orden = integer(), actividad = ch, cumplida = logical()),
       list(ref("tareas", "tarea_id")), requeridos = character()),
+    tarea_actividad_cumplimiento = contrato(c("tarea_id", "orden"),
+      data.frame(tarea_id = ch, orden = integer(), fecha = instante),
+      list(ref("tarea_actividades", c("tarea_id", "orden"))), requeridos = "fecha"),
     tarea_archivo = contrato("tarea_id", data.frame(tarea_id = ch, estado = ch),
       list(ref("tareas", "tarea_id")), requeridos = "estado"),
     tarea_comentarios = contrato("comentario_id",
@@ -240,6 +245,9 @@
         preferencia_calidad = .gestion_texto(campos$calidad))
     }
     if (tipo == "tarea") {
+      if (is.null(origen)) {
+        t$tarea_creacion <- rbind(t$tarea_creacion, data.frame(tarea_id = id, autor = usuario, fecha = ahora))
+      }
       prioridad <- .gestion_texto(campos$prioridad)
       if (is.na(prioridad)) prioridad <- "MEDIA"
       if (prioridad == "ALTA") prioridad <- "IMPORTANTE"
@@ -255,9 +263,12 @@
       actividades <- unique(trimws(as.character(campos$actividades)))
       actividades <- actividades[!is.na(actividades) & nzchar(actividades)]
       if (length(actividades)) {
+        cumplidas <- actividades %in% campos$actividades_cumplidas
         t$tarea_actividades <- rbind(t$tarea_actividades,
           data.frame(tarea_id = id, PerCod = cliente, orden = seq_along(actividades), actividad = actividades,
-                     cumplida = actividades %in% campos$actividades_cumplidas))
+                     cumplida = cumplidas))
+        t$tarea_actividad_cumplimiento <- rbind(t$tarea_actividad_cumplimiento,
+          data.frame(tarea_id = rep(id, sum(cumplidas)), orden = which(cumplidas), fecha = rep(ahora, sum(cumplidas))))
       }
     }
     t[[tabla]] <- .gestion_upsert(t[[tabla]], fila, llave)
