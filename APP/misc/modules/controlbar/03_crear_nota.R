@@ -121,6 +121,21 @@ CrearNotasUI <- function(id) {
   )
 }
 
+.enviar_asignacion_tarea <- function(campos, creador, responsable, desarrollo) {
+  usuario <- sub("@racafe[.]com$", "", tolower(trimws(responsable)))
+  if (!grepl("^[a-z0-9._-]+$", usuario)) stop("El responsable no tiene un usuario de correo válido.")
+  para <- paste0(if (desarrollo) "hcyate" else usuario, "@racafe.com")
+  fecha <- format(campos$fecha, "%d/%m/%y")
+  vencimiento <- .formato_fecha_crm(campos$seguimiento)
+  mensaje <- paste("Se asignó una tarea en CRM Diferenciados.",
+                   paste0("Título: ", campos$asunto), paste0("Creado por: ", creador),
+                   paste0("Fecha de creación: ", fecha), paste0("Asignado a: ", responsable),
+                   paste0("Vencimiento: ", vencimiento),
+                   if (nzchar(trimws(campos$resultado %||% ""))) paste0("Descripción: ", campos$resultado)
+                   else "Sin descripción", sep = " · ")
+  racafeMail::racafeMailNotificacion(para = para, nombre = responsable, mensaje = mensaje)
+}
+
 CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -302,6 +317,15 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
         FALSE
       })
       if (actualizado) racafeForms::racafeNotify(session, "Registro guardado", type = "success")
+      if (identical(campos$tipo, "SEGUIMIENTO")) {
+        tryCatch({
+          .enviar_asignacion_tarea(campos, identidad$usuario, identidad$usuario,
+                                   identidad$local || isTRUE(getOption("crm.desarrollo")))
+        }, error = function(e) {
+          racafeForms::racafeNotify(session, "Tarea guardada", "No se pudo enviar el correo de asignación.",
+                                    type = "warning")
+        })
+      }
     })
     editar
   })

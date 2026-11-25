@@ -42,6 +42,9 @@
     tarea_actividad_cumplimiento = contrato(c("tarea_id", "orden"),
       data.frame(tarea_id = ch, orden = integer(), fecha = instante),
       list(ref("tarea_actividades", c("tarea_id", "orden"))), requeridos = "fecha"),
+    tarea_actividad_detalle = contrato(c("tarea_id", "orden"),
+      data.frame(tarea_id = ch, orden = integer(), autor = ch, nota = ch),
+      list(ref("tarea_actividades", c("tarea_id", "orden"))), requeridos = character()),
     tarea_archivo = contrato("tarea_id", data.frame(tarea_id = ch, estado = ch),
       list(ref("tareas", "tarea_id")), requeridos = "estado"),
     tarea_comentarios = contrato("comentario_id",
@@ -269,6 +272,9 @@
                      cumplida = cumplidas))
         t$tarea_actividad_cumplimiento <- rbind(t$tarea_actividad_cumplimiento,
           data.frame(tarea_id = rep(id, sum(cumplidas)), orden = which(cumplidas), fecha = rep(ahora, sum(cumplidas))))
+        t$tarea_actividad_detalle <- rbind(t$tarea_actividad_detalle,
+          data.frame(tarea_id = rep(id, sum(cumplidas)), orden = which(cumplidas),
+                     autor = rep(usuario, sum(cumplidas)), nota = rep(NA_character_, sum(cumplidas))))
       }
     }
     t[[tabla]] <- .gestion_upsert(t[[tabla]], fila, llave)
