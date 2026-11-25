@@ -81,7 +81,13 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
       if (!nrow(datos())) return(.nota("Sin registros para los filtros activos.", "empty"))
       NULL
     })
-    .tabla_server("tabla", reactive(.etiquetar_clientes(datos(), operativo()$clientes)), output)
+    .tabla_server("tabla", reactive({
+      d <- .etiquetar_clientes(datos(), operativo()$clientes)
+      if ("responsable" %in% names(d)) {
+        d$responsable <- .asesor_nombre(d$responsable, .asesores_catalogo(publicaciones()$crm$tablas))
+      }
+      d
+    }), output)
     observeEvent(input$nuevo, abrir(tipo, cliente = input$cliente, vista = id))
     observeEvent(input$proxima, {
       d <- datos()

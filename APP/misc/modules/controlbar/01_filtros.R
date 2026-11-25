@@ -71,7 +71,7 @@ Filtros <- function(id, publicaciones) {
       opciones <- stats::setNames(creadores, .asesor_nombre(creadores, catalogo))
       racafeForms::racafeInputSelect(ns("filtro_creador"), "Asesor que creó el pedido", opciones, multiple = TRUE,
                                     selected = intersect(isolate(input$filtro_creador), creadores),
-                                    empty_label = "Todos")
+                                    empty_label = "Todos", uppercase = FALSE)
     })
 
     reactive({

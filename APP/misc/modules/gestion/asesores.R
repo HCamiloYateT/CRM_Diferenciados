@@ -45,8 +45,7 @@
 }
 
 .AsesoresUI <- function(id) {
-  ns <- NS(id)
-  racafeForms::racafePanel(title = "Asesores", uiOutput(ns("formulario")), tableOutput(ns("asesores")))
+  racafeForms::racafePanel(title = "Asesores", reactable::reactableOutput(NS(id)("asesores")))
 }
 
 .AsesoresServer <- function(id, publicaciones, raiz, refrescar) {
@@ -56,49 +55,64 @@
     autorizado <- .crm_es_admin(identidad$usuario, identidad$grupos)
     origen <- reactiveVal(NULL)
     catalogo <- reactive(.asesores_catalogo(publicaciones()$crm$tablas))
-    usuarios <- reactive({
+    filas <- reactive({
       pedidos <- .tabla_fuente(publicaciones(), "pedidos")
-      claves <- .asesor_usuario(c(pedidos$PdcUsu, catalogo()$usuario))
-      sort(unique(claves[!is.na(claves) & grepl("^[A-Z0-9._-]+$", claves)]))
-    })
-    output$formulario <- renderUI({
-      if (!autorizado) return(NULL)
-      claves <- usuarios()
-      racafeForms::racafeForm(
-        racafeForms::racafeInputSelect("usuario", "Usuario que creó el pedido", claves,
-                                       selected = intersect(isolate(input$usuario), claves), ns = ns),
-        uiOutput(ns("edicion")), variant = "plain"
-      )
-    })
-    output$edicion <- renderUI({
-      clave <- .gestion_texto(input$usuario)
-      req(autorizado, !is.na(clave), clave %in% usuarios())
       d <- catalogo()
-      fila <- d[d$usuario == clave, , drop = FALSE]
-      origen(list(clave = clave, fila = fila))
-      racafeForms::racafeFormRow(
-        racafeForms::racafeInputText("nombre", "Nombre", value = if (nrow(fila)) fila$nombre else clave, ns = ns),
-        racafeForms::racafeInputText("correo", "Correo",
-                                     value = if (nrow(fila)) fila$correo else .asesor_correo(clave), ns = ns),
-        racafeForms::racafeInputSwitch("vigente", "Vigente", value = !nrow(fila) || fila$vigente, ns = ns),
-        racafeForms::racafeButton("guardar", "Guardar asesor", icon = "check", ns = ns),
-        columns = 4L, responsive = "auto"
+      claves <- .asesor_usuario(c(pedidos$PdcUsu, d$usuario))
+      claves <- sort(unique(claves[!is.na(claves) & grepl("^[A-Z0-9._-]+$", claves)]))
+      i <- match(claves, d$usuario)
+      data.frame(usuario = claves, nombre = .asesor_nombre(claves, d),
+                 correo = ifelse(is.na(i), .asesor_correo(claves), d$correo[i]),
+                 vigente = is.na(i) | d$vigente[i])
+    })
+    output$asesores <- reactable::renderReactable({
+      req(autorizado)
+      reactable::reactable(
+        filas(), searchable = TRUE, compact = TRUE, highlight = TRUE, defaultPageSize = 15,
+        selection = "single", onClick = "select",
+        columns = list(.selection = reactable::colDef(show = FALSE),
+                       usuario = reactable::colDef(name = "Usuario"),
+                       nombre = reactable::colDef(name = "Nombre de la persona"),
+                       correo = reactable::colDef(name = "Correo"),
+                       vigente = reactable::colDef(name = "Activo", cell = function(value) {
+                         racafeForms::racafeStatusBadge(if (value) "Sí" else "No",
+                                                       variant = if (value) "success" else "neutral")
+                       }))
       )
+    })
+    observeEvent(reactable::getReactableState("asesores", "selected"), {
+      req(autorizado)
+      seleccion <- reactable::getReactableState("asesores", "selected")
+      d <- filas()
+      req(length(seleccion) == 1L, seleccion %in% seq_len(nrow(d)))
+      fila <- d[seleccion, , drop = FALSE]
+      anterior <- catalogo()
+      origen(list(clave = fila$usuario, fila = anterior[anterior$usuario == fila$usuario, , drop = FALSE]))
+      reactable::updateReactable("asesores", selected = NA)
+      showModal(racafeForms::racafeModalDetail(
+        title = paste("Editar asesor", fila$usuario), size = "subventana3",
+        racafeForms::racafeForm(
+          racafeForms::racafeInputText("nombre", "Nombre de la persona", value = fila$nombre, ns = ns),
+          racafeForms::racafeInputText("correo", "Correo", value = fila$correo, ns = ns),
+          racafeForms::racafeInputSwitch("vigente", "Activo", value = fila$vigente, ns = ns),
+          variant = "plain"
+        ),
+        footer = racafeForms::racafeModalFooter(
+          modalButton("Cancelar"),
+          racafeForms::racafeButton("guardar", "Guardar", icon = "check", ns = ns)
+        )
+      ))
     })
     observeEvent(input$guardar, {
       registro <- origen()
-      req(autorizado, identical(input$usuario, registro$clave), input$usuario %in% usuarios())
+      req(autorizado, !is.null(registro))
       tryCatch({
-        .asesores_guardar(raiz, input$usuario, input$nombre, input$correo, input$vigente, identidad, registro$fila)
+        .asesores_guardar(raiz, registro$clave, input$nombre, input$correo, input$vigente, identidad, registro$fila)
+        origen(NULL)
+        removeModal()
         refrescar()
         racafeForms::racafeNotify(session, "Asesor guardado", type = "success")
       }, error = function(e) racafeForms::racafeNotify(session, "No se pudo guardar", conditionMessage(e), type = "error"))
-    })
-    output$asesores <- renderTable({
-      req(autorizado)
-      d <- catalogo()
-      data.frame(Usuario = d$usuario, Nombre = d$nombre, Correo = d$correo,
-                 Vigencia = ifelse(d$vigente, "Vigente", "Inactivo"))
     })
   })
 }

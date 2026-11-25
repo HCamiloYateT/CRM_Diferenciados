@@ -198,7 +198,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
                                        selected = "MEDIA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
         racafeForms::racafeInputSelect("responsable", "Responsable", opciones,
                                        selected = intersect(isolate(input$responsable) %||% usuario(), opciones),
-                                       required = TRUE, ns = ns),
+                                       uppercase = FALSE, required = TRUE, ns = ns),
         responsive = "fixed"
       )
     })
