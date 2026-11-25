@@ -2,7 +2,7 @@
 
 TableroTareasUI <- function(id) {
   ns <- NS(id)
-  div(class = "crm-vista crm-tareas-form", h1("Notas y tareas"),
+  div(class = "crm-vista crm-tareas-form",
       racafeForms::racafeForm(
         variant = "plain",
         racafeForms::racafeActionBar(left = tagAppendAttributes(
