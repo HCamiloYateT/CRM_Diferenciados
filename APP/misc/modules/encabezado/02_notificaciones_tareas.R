@@ -10,7 +10,10 @@
 
 .NotasTareasHeaderServer <- function(input, session, publicaciones) {
   registros <- reactive({
-    d <- .gestion_filas(publicaciones()$crm$tablas, "tareas")
+    tablas <- publicaciones()$crm$tablas
+    d <- .gestion_filas(tablas, "tareas")
+    archivadas <- .gestion_filas(tablas, "tarea_archivo")$tarea_id
+    d <- d[!d$tarea_id %in% archivadas & d$estado != "CANCELADA", , drop = FALSE]
     usuario <- toupper(session$user %||% character())
     .gestion_agenda(d[which(toupper(d$responsable) %in% usuario), , drop = FALSE])
   })

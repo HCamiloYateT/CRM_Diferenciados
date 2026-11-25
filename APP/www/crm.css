@@ -106,3 +106,10 @@
 .rf-form .crm-nota-selectize .selectize-dropdown-content {
   max-height: 13rem; overflow-y: auto;
 }
+
+.crm-tareas-form :is(.kpb-card-menu .btn, .rm-action-trigger) {
+  background: #fff !important; color: #495057 !important; border: 1px solid #adb5bd !important;
+  border-radius: 50%; box-shadow: none; width: 28px; height: 28px;
+}
+.crm-tareas-form .kb-collapse-toggle { background: transparent; border: 0; color: #495057; padding: 4px; }
+.crm-tareas-form .kpb-card { margin-bottom: 10px; }

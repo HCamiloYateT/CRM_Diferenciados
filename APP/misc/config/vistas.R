@@ -149,7 +149,7 @@
 
 .colores_etapa_crm <- c(CONTACTO = "#6C757D", PROSPECTO = "#E69F00", LEAD = "#0072B2",
                        CLIENTE = "#009E73", DESCARTADO = "#CC79A7")
-.colores_prioridad_crm <- c(ALTA = "#E69F00", MEDIA = "#0072B2", BAJA = "#009E73")
+.colores_prioridad_crm <- c(URGENTE = "#D55E00", IMPORTANTE = "#E69F00", MEDIA = "#0072B2", BAJA = "#009E73")
 
 # Acciones de captura ----
 

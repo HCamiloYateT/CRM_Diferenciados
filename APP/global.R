@@ -53,7 +53,8 @@ for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publica
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R",
                    "modules/encabezado/00_header.R", "modules/encabezado/01_tabla_indicadores.R",
                    "modules/encabezado/02_notificaciones_tareas.R",
-                   "modules/controlbar/01_filtros.R", "modules/controlbar/03_crear_nota.R")) {
+                   "modules/controlbar/01_filtros.R", "modules/controlbar/03_crear_nota.R",
+                   "modules/gestion_comercial/notas_tareas/01_modulo.R")) {
   source(file.path(.ruta_app, "misc", .archivo), local = TRUE)
 }
 
@@ -66,6 +67,7 @@ for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publica
   .incluir_recurso("Scripts/forms.js", shiny::includeScript),
   .incluir_recurso("Scripts/controlbar.js", shiny::includeScript),
   .incluir_recurso("Scripts/interactions.js", shiny::includeScript),
+  .incluir_recurso("Scripts/crm-kanban.js", shiny::includeScript),
   .incluir_recurso("Styles/crm-nacional.css", shiny::includeCSS),
   tags$head(tags$link(rel = "stylesheet", href = "crm.css"), tags$script(src = "crm.js"))
 ))
