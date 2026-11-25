@@ -1,5 +1,19 @@
 # Captura de notas y tareas ----
 
+.etiquetas_notas_corporativas <- function() {
+  .disponible_api("racafeModulos", "ListaDesplegableAgregableUI") &&
+    .disponible_api("racafeModulos", "ListaDesplegableAgregable")
+}
+
+.actividad_nota_ui <- function(ns, id) {
+  div(id = ns(paste0("fila_", id)), class = "crm-nota-actividad",
+      checkboxInput(ns(paste0("cumplida_", id)), "Cumplida"),
+      racafeForms::racafeInputText(paste0("actividad_", id), "Actividad", placeholder = "Describa la actividad",
+                                   ns = ns),
+      racafeForms::racafeButton(paste0("quitar_", id), label = NULL, icon = "trash", title = "Eliminar actividad",
+                                variant = "danger", size = "xxs", ns = ns))
+}
+
 CrearNotasUI <- function(id) {
   ns <- NS(id)
   racafeForms::racafePanel(
@@ -22,26 +36,30 @@ CrearNotasUI <- function(id) {
         racafeForms::racafeFormGroup(
           racafeForms::racafeInputDate("seguimiento", "Fecha de cumplimiento", value = .HoyProductos() + 1L,
                                        min = .HoyProductos(), required = TRUE, ns = ns),
-          uiOutput(ns("asignacion")),
+          uiOutput(ns("asignacion"))
+        )
+      ),
+      racafeForms::racafeFormGroup(
+        if (.etiquetas_notas_corporativas()) {
+          racafeModulos::ListaDesplegableAgregableUI(ns("etiquetas"))
+        } else div(class = "crm-nota-selectize",
+                   selectizeInput(ns("etiquetas"), "Etiquetas", choices = NULL, multiple = TRUE,
+                                  options = list(create = TRUE, persist = FALSE,
+                                                 placeholder = "Elegir o crear etiquetas")))
+      ),
+      conditionalPanel(
+        "input.tipo === 'SEGUIMIENTO'", ns = ns,
+        racafeForms::racafeFormGroup(
           racafeForms::racafeInputSwitch("incluir_actividades", "Incluir lista de actividades", ns = ns),
           conditionalPanel(
             "input.incluir_actividades", ns = ns,
-            racafeForms::racafeFormRow(
-              racafeForms::racafeInputText("actividad", "Actividad", ns = ns),
-              racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus", size = "xs", ns = ns),
-              actions = TRUE, responsive = "fixed"
-            ),
-            uiOutput(ns("lista_actividades")),
-            conditionalPanel("input.actividades && input.actividades.length > 0", ns = ns,
-                             racafeForms::racafeButton("quitar_actividades", "Quitar marcadas", icon = "trash",
-                                                       variant = "secondary", size = "xs", ns = ns))
+            div(class = "d-flex justify-content-end",
+                racafeForms::racafeButton("agregar_actividad", "Añadir", icon = "plus", size = "xxs", ns = ns)),
+            div(id = ns("lista_actividades"), .actividad_nota_ui(ns, 1L))
           )
         )
       ),
       racafeForms::racafeFormGroup(
-        div(class = "crm-nota-selectize",
-            selectizeInput(ns("etiquetas"), "Etiquetas", choices = NULL, multiple = TRUE,
-                           options = list(create = TRUE, persist = FALSE, placeholder = "Elegir o crear etiquetas"))),
         racafeForms::racafeInputText("motivo", "Motivo del registro", required = TRUE, ns = ns)
       ),
       racafeForms::racafeFormFooter(
@@ -58,8 +76,9 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     pendiente <- reactiveVal(NULL)
-    actividades <- reactiveVal(character())
-    completadas <- reactiveVal(character())
+    actividades <- reactiveVal(1L)
+    siguiente_actividad <- 1L
+    observadores <- list()
     limpiar_etiquetas <- reactiveVal(FALSE)
     clientes <- reactive(.tabla_fuente(publicaciones(), "clientes"))
 
@@ -67,11 +86,19 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       .actualizar_selector_clientes(session, "cliente", clientes(), input$cliente)
     }, ignoreNULL = FALSE)
 
+    etiquetas_modulo <- if (.etiquetas_notas_corporativas()) {
+      racafeModulos::ListaDesplegableAgregable("etiquetas", label = "Etiquetas", choices = character(),
+                                               selected = character(), multiple = TRUE, fem = TRUE)
+    }
+    etiquetas_elegidas <- if (is.null(etiquetas_modulo)) reactive(input$etiquetas) else etiquetas_modulo$seleccion
     observeEvent(publicaciones(), {
-      etiquetas <- .gestion_filas(publicaciones()$crm$tablas, "tarea_etiquetas")$etiqueta
-      seleccion <- if (limpiar_etiquetas()) character() else input$etiquetas %||% character()
+      catalogo <- .gestion_filas(publicaciones()$crm$tablas, "tarea_etiquetas")$etiqueta
+      seleccion <- if (limpiar_etiquetas()) character() else etiquetas_elegidas() %||% character()
       limpiar_etiquetas(FALSE)
-      updateSelectizeInput(session, "etiquetas", choices = sort(unique(c(etiquetas, seleccion))), selected = seleccion)
+      opciones <- sort(unique(c(catalogo, seleccion)))
+      if (is.null(etiquetas_modulo)) {
+        updateSelectizeInput(session, "etiquetas", choices = opciones, selected = seleccion)
+      } else etiquetas_modulo$actualizar(opciones, seleccion)
     })
 
     output$asignacion <- renderUI({
@@ -84,22 +111,31 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       )
     })
 
+    quitar_actividad <- function(indice) {
+      if (length(actividades()) == 1L) {
+        updateTextInput(session, paste0("actividad_", indice), value = "")
+        updateCheckboxInput(session, paste0("cumplida_", indice), value = FALSE)
+        return(invisible(NULL))
+      }
+      removeUI(selector = paste0("#", ns(paste0("fila_", indice))), immediate = TRUE)
+      actividades(setdiff(actividades(), indice))
+      clave <- as.character(indice)
+      observadores[[clave]]$destroy()
+      observadores[[clave]] <<- NULL
+    }
+    observar_actividad <- function(indice) {
+      force(indice)
+      observadores[[as.character(indice)]] <<- observeEvent(input[[paste0("quitar_", indice)]],
+                                                            quitar_actividad(indice), ignoreNULL = TRUE)
+    }
+    observar_actividad(1L)
     observeEvent(input$agregar_actividad, {
-      texto <- .gestion_texto(input$actividad)
-      if (is.na(texto)) return(showNotification("Ingrese el texto de la actividad.", type = "warning"))
-      if (texto %in% actividades()) return(showNotification("Esa actividad ya está en la lista.", type = "warning"))
-      completadas(input$actividades %||% character())
-      actividades(c(actividades(), texto))
-      updateTextInput(session, "actividad", value = "")
-    })
-    observeEvent(input$quitar_actividades, {
-      actividades(setdiff(actividades(), input$actividades))
-      completadas(character())
-    })
-    output$lista_actividades <- renderUI({
-      if (!length(actividades())) return(NULL)
-      checkboxGroupInput(ns("actividades"), "Marcar actividades cumplidas", choices = actividades(),
-                         selected = isolate(completadas()))
+      siguiente_actividad <<- siguiente_actividad + 1L
+      indice <- siguiente_actividad
+      insertUI(selector = paste0("#", ns("lista_actividades")), where = "beforeEnd",
+               ui = .actividad_nota_ui(ns, indice), immediate = TRUE)
+      actividades(c(actividades(), indice))
+      observar_actividad(indice)
     })
 
     observeEvent(input$crear, {
@@ -124,13 +160,18 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
         for (mensaje in names(condiciones)[condiciones]) showNotification(mensaje, type = "warning")
         return(invisible(NULL))
       }
+      lista <- character()
+      cumplidas <- logical()
+      if (tarea && isTRUE(input$incluir_actividades)) {
+        lista <- vapply(actividades(), function(i) .gestion_texto(input[[paste0("actividad_", i)]]), character(1))
+        cumplidas <- vapply(actividades(), function(i) isTRUE(input[[paste0("cumplida_", i)]]), logical(1))
+      }
       pendiente(list(PerCod = cliente, tipo = tipo, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
                      prioridad = if (tarea) input$prioridad else "MEDIA", motivo = motivo,
-                     etiquetas = input$etiquetas,
-                     actividades = if (tarea && isTRUE(input$incluir_actividades)) actividades(),
-                     actividades_cumplidas = input$actividades))
+                     etiquetas = etiquetas_elegidas(), actividades = lista,
+                     actividades_cumplidas = lista[cumplidas]))
       showModal(modalDialog(
         title = if (tarea) "Confirmar tarea" else "Confirmar nota", tags$p(titulo),
         footer = tagList(modalButton("Cancelar"), .boton(ns("confirmar"), "Guardar", "check"))
@@ -146,8 +187,8 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
         pedidos <- .tabla_fuente(publicaciones(), "pedidos")
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = session$user,
                          clientes = clientes(), pedidos = pedidos)
-        actividades(character())
-        completadas(character())
+        for (indice in actividades()) quitar_actividad(indice)
+        shinyWidgets::updateMaterialSwitch(session, "incluir_actividades", value = FALSE)
         limpiar_etiquetas(TRUE)
         al_guardar()
         updateTextInput(session, "titulo", value = "")

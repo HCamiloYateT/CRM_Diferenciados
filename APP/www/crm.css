@@ -78,3 +78,9 @@
   height: auto !important; min-height: 0 !important;
 }
 .crm-nota-selectize .selectize-input { box-sizing: border-box; width: 100%; }
+
+.crm-nota-actividad {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: end;
+}
+.crm-nota-actividad .shiny-input-container { margin-bottom: 8px; }
+.crm-nota-actividad > button { margin-bottom: 8px; }
