@@ -153,32 +153,52 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
 
     observeEvent(input$crear, {
       pendiente(NULL)
-      if (!.prod_autorizado(session$user, Sys.getenv("CRM_GESTION_USUARIOS"))) {
-        return(showNotification("La captura requiere una cuenta autorizada para gestión.", type = "warning"))
+      if (!.gestion_autorizada(session$user, session$groups)) {
+        return(racafeForms::racafeNotify(session, "Acceso restringido",
+                                        "La captura requiere una cuenta autorizada para gestión.", type = "warning"))
       }
-      titulo <- .gestion_texto(input$titulo)
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")
-      seguimiento <- if (tarea) .dp_fecha(as.character(input$seguimiento %||% NA_character_)) else as.Date(NA)
-      condiciones <- c(
-        "Ingrese el título." = is.na(titulo),
-        "Seleccione nota o tarea." = !tipo %in% c("NOTA", "SEGUIMIENTO"),
-        "Seleccione una fecha de cumplimiento válida." = tarea && (is.na(seguimiento) || seguimiento < .HoyProductos())
-      )
-      if (any(condiciones)) {
-        for (mensaje in names(condiciones)[condiciones]) showNotification(mensaje, type = "warning")
-        return(invisible(NULL))
-      }
       lista <- character()
       cumplidas <- logical()
-      if (tarea && isTRUE(input$incluir_actividades)) {
-        lista <- vapply(actividades(), function(i) .gestion_texto(input[[paste0("actividad_", i)]]), character(1))
-        cumplidas <- vapply(actividades(), function(i) isTRUE(estados_actividad[[as.character(i)]]), logical(1))
+      campos <- list(tipo = list(label = "Tipo", required = TRUE, kind = "select"),
+                     titulo = list(label = "Título", required = TRUE, kind = "text"))
+      valores <- list(tipo = tipo, titulo = .gestion_texto(input$titulo))
+      reglas <- list(tipo = function(x, valores) {
+        if (length(x) == 1L && x %in% c("NOTA", "SEGUIMIENTO")) TRUE else "Seleccione nota o tarea."
+      })
+      if (tarea) {
+        campos$seguimiento <- list(label = "Fecha de cumplimiento", required = TRUE, kind = "date")
+        campos$prioridad <- list(label = "Prioridad", required = TRUE, kind = "select")
+        valores$seguimiento <- .dp_fecha(as.character(input$seguimiento %||% NA_character_))
+        valores$prioridad <- input$prioridad %||% ""
+        reglas$seguimiento <- function(x, valores) {
+          if (x >= .HoyProductos()) TRUE else "La fecha no puede ser anterior a hoy."
+        }
+        reglas$prioridad <- function(x, valores) {
+          if (length(x) == 1L && x %in% names(.colores_prioridad_crm)) TRUE else "Seleccione una prioridad válida."
+        }
       }
+      if (tarea && isTRUE(input$incluir_actividades)) {
+        ids <- paste0("actividad_", actividades())
+        lista <- vapply(ids, function(id) .gestion_texto(input[[id]]), character(1))
+        cumplidas <- vapply(actividades(), function(i) isTRUE(estados_actividad[[as.character(i)]]), logical(1))
+        campos[ids] <- lapply(seq_along(ids), function(i) {
+          list(label = paste("Actividad", i), required = TRUE, kind = "text")
+        })
+        valores[ids] <- as.list(lista)
+      }
+      validacion <- racafeForms::racafeValidateForm(valores, campos, rules = reglas, ns = ns)
+      racafeForms::racafeShowValidation(session, validacion, mode = "inline")
+      if (!validacion$valid) {
+        return(racafeForms::racafeNotify(session, "Campos pendientes",
+                                        "Revise los campos señalados antes de continuar.", type = "warning"))
+      }
+      titulo <- valores$titulo
       pendiente(list(tipo = tipo, asunto = titulo, resultado = input$descripcion,
-                     fecha = .HoyProductos(), seguimiento = seguimiento,
+                     fecha = .HoyProductos(), seguimiento = valores$seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
-                     prioridad = if (tarea) input$prioridad else "MEDIA",
+                     prioridad = if (tarea) valores$prioridad else "MEDIA",
                      motivo = if (tarea) "Creación de tarea desde el panel lateral" else
                        "Creación de nota desde el panel lateral",
                      etiquetas = etiquetas_elegidas(), actividades = lista,
@@ -196,15 +216,17 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       removeModal()
       tryCatch({
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = session$user,
-                         clientes = NULL, pedidos = NULL)
+                         clientes = NULL, pedidos = NULL, grupos = session$groups)
         for (indice in actividades()) quitar_actividad(indice)
         shinyWidgets::updateMaterialSwitch(session, "incluir_actividades", value = FALSE)
         limpiar_etiquetas(TRUE)
         al_guardar()
         updateTextInput(session, "titulo", value = "")
         updateTextAreaInput(session, "descripcion", value = "")
-        showNotification("Registro guardado.", type = "message")
-      }, error = function(e) showNotification(conditionMessage(e), type = "error"))
+        racafeForms::racafeNotify(session, "Registro guardado", type = "success")
+      }, error = function(e) {
+        racafeForms::racafeNotify(session, "No se pudo guardar el registro", conditionMessage(e), type = "error")
+      })
     })
   })
 }

@@ -114,8 +114,18 @@
   tabla
 }
 
-.gestion_guardar <- function(raiz, tipo, campos, origen, usuario, clientes, pedidos, esperado = NULL) {
-  if (!.prod_autorizado(usuario, Sys.getenv("CRM_GESTION_USUARIOS"))) {
+.crm_es_admin <- function(usuario, grupos = character()) {
+  identidad_valida <- length(usuario) == 1L && !is.na(usuario) && nzchar(trimws(usuario))
+  identidad_valida && (tolower(trimws(usuario)) == "lmgranados" ||
+    any(toupper(trimws(grupos)) %in% c("ANALITICA", "ANALÍTICA")))
+}
+
+.gestion_autorizada <- function(usuario, grupos = character()) {
+  .crm_es_admin(usuario, grupos) || .prod_autorizado(usuario, Sys.getenv("CRM_GESTION_USUARIOS"))
+}
+
+.gestion_guardar <- function(raiz, tipo, campos, origen, usuario, clientes, pedidos, esperado = NULL, grupos = character()) {
+  if (!.gestion_autorizada(usuario, grupos)) {
     stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
   }
   nota <- tipo == "tarea" && identical(campos$tipo, "NOTA")
