@@ -30,14 +30,16 @@
   if (is.na(separador) || separador < 1L) return(htmltools::htmlEscape(valor))
   as.character(shiny::tagList(substr(valor, 1L, separador - 1L), " ",
                              shiny::tags$strong(class = "crm-indicador-unidad font-weight-bold",
-                                                substring(valor, separador + 1L))))
+                                                style = "font-size:70%;", substring(valor, separador + 1L))))
 }
 
 .TablaIndicadoresHTML <- function(datos, colores, encabezado = TRUE) {
   html <- shiny::tags
   shiny::div(class = "crm-tabla table-responsive",
              html$table(class = "table table-sm",
-                        if (encabezado) html$thead(html$tr(lapply(names(datos), html$th))),
+                        if (encabezado) html$thead(html$tr(lapply(names(datos), function(nombre) {
+                          html$th(style = "border-bottom:1px solid #6C757D;", nombre)
+                        }))),
                         html$tbody(lapply(seq_len(nrow(datos)), function(i) {
                           html$tr(lapply(seq_len(ncol(datos)), function(j) {
                             html$td(style = if (!is.na(colores[i, j])) paste0("color:", colores[i, j]),
@@ -82,6 +84,27 @@ ComparacionIndicadoresUI <- function(id) {
                racafeForms::racafeButton("actualizar", "Actualizar", icon = "sync", ns = ns,
                                          variant = "primary", size = "xxs"), align = "right"),
              .CargaIndicadoresUI(ns, shiny::div(class = "crm-panel", tabla, shiny::uiOutput(ns("estado")))))
+}
+
+.MetodologiaComparacionIndicadores <- function(valor, id) {
+  inicio <- .formato_fecha_crm(valor$inicio)
+  fin <- .formato_fecha_crm(valor$fin)
+  referencia <- if (isTRUE(valor$vigente)) {
+    sprintf("El valor final del %s corresponde a los datos de mercado disponibles al consultar.", fin)
+  } else {
+    sprintf("El valor final corresponde a los indicadores registrados el %s.", fin)
+  }
+  puntos <- c(sprintf("El valor inicial corresponde a los indicadores registrados el %s.", inicio), referencia,
+              "La diferencia indica cuánto subió o bajó cada indicador en su propia unidad.",
+              "La variación expresa ese cambio como porcentaje del valor inicial.",
+              "Las celdas quedan vacías cuando faltan datos para mostrar un valor o calcular el cambio.")
+  nota <- racafeForms::racafeNoticeList(puntos, title = NULL, font_size = 11,
+                                        text_color = "#495057", accent_color = "#DA291C")
+  titulo <- "Metodología de la comparación"
+  if (.disponible_api("racafeShiny", "racafeCollapsible")) {
+    return(racafeShiny::racafeCollapsible(id, titulo, open = FALSE, nota, color = "#6C757D", class = "crm-seccion"))
+  }
+  shiny::tags$details(id = id, shiny::tags$summary(titulo), nota)
 }
 
 .FormatoComparacionIndicadores <- function(datos, inicio, fin) {
@@ -135,15 +158,7 @@ ComparacionIndicadores <- function(id, activo, vigentes) {
         return(.nota(mensaje, "error"))
       }
       if (is.null(valor)) return(NULL)
-      inicio <- .formato_fecha_crm(valor$inicio)
-      fin <- .formato_fecha_crm(valor$fin)
-      referencia <- if (isTRUE(valor$vigente)) {
-        sprintf("Para el %s, mostramos los valores de mercado disponibles al momento de la consulta.", fin)
-      } else {
-        sprintf("Para el %s, usamos los valores registrados ese día.", fin)
-      }
-      .nota(paste(sprintf("La comparación parte de los valores registrados el %s.", inicio), referencia,
-                  "Las celdas vacías indican que faltan datos para mostrar el valor o calcular el cambio."))
+      .MetodologiaComparacionIndicadores(valor, session$ns("metodologia"))
     })
     presentacion <- shiny::reactive({
       valor <- resultado()
@@ -153,7 +168,7 @@ ComparacionIndicadores <- function(id, activo, vigentes) {
     if (.IndicadoresGT("racafeTableVancouver")) {
       output$tabla <- gt::render_gt({
         vista <- presentacion()
-        tabla <- racafeShiny::racafeTableVancouver(vista$datos, font_size = 12, row_padding = 4,
+        tabla <- racafeShiny::racafeTableVancouver(vista$datos, header_color = "#6C757D", font_size = 12, row_padding = 4,
                                                    align = c("left", rep("right", 4L)), min_width = "620px")
         .ColorearIndicadoresGT(tabla, vista$datos, vista$colores)
       })
