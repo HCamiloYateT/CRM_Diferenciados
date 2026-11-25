@@ -24,7 +24,7 @@
   ),
   "Cohortes de clientes" = list(
     cohortes = .vista("Clientes nuevos por período", "primer_pedido_cliente",
-      "Un PerCod cuenta en el período exacto de su primer pedido observado. La cobertura histórica limita la cohorte.",
+      "Cada cliente cuenta en el período de su primer pedido observado. La cobertura histórica limita la cohorte.",
       "cohortes")
   ),
   "Muestras" = list(

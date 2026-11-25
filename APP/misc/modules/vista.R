@@ -230,7 +230,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
           salida <- if (is.null(fuente)) {
             .nota(estado, "muted")
           } else if (!"PerCod" %in% names(fuente)) {
-            .nota("Pendiente de vínculo verificable con PerCod.", "muted")
+            .nota("Pendiente de vínculo verificable con el código de cliente.", "muted")
           } else if (!any(fuente$PerCod == input$registro, na.rm = TRUE)) {
             .nota("Sin registros para el cliente seleccionado.", "empty")
           } else .tabla_ui(session$ns(paste0("ficha_", i)))
@@ -360,7 +360,7 @@ VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_acci
     if (id %in% c("productos", "tier_admin")) output$administrar <- renderUI({
       campos <- switch(id,
                        productos = c("Código original", "Descripción", "Marca", "Categoría", "Producto", "Vigencia"),
-                       tier_admin = c("PerCod", "Versión de método", "Tier propuesto", "Vigencia"))
+                       tier_admin = c("Código de cliente", "Versión de método", "Tier propuesto", "Vigencia"))
       div(class = "crm-panel", h2("Propuesta y aprobación"),
           tags$fieldset(class = "crm-form-grid", disabled = NA, lapply(seq_along(campos), function(i) {
             textInput(session$ns(paste0("campo_", i)), campos[i])

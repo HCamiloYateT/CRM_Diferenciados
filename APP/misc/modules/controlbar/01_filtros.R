@@ -68,7 +68,7 @@ Filtros <- function(id, publicaciones) {
       creadores <- sort(unique(na.omit(as.character(pedidos$PdcUsu))))
       creadores <- creadores[nzchar(creadores)]
       racafeForms::racafeFormRow(
-        racafeForms::racafeInputSelect(ns("filtro_creador"), "Usuario de creación", creadores, multiple = TRUE,
+        racafeForms::racafeInputSelect(ns("filtro_creador"), "Comercial que creó el pedido", creadores, multiple = TRUE,
                                       selected = intersect(isolate(input$filtro_creador), creadores), empty_label = "Todos"),
         racafeForms::racafeInputSelect(ns("filtro_asesor"), "Asesor", c("Pendiente" = ""), disabled = TRUE),
         responsive = "fixed"

@@ -115,7 +115,7 @@
     stop("La cuenta no tiene permiso para registrar gestión.", call. = FALSE)
   }
   cliente <- .gestion_campo(campos$PerCod, "cliente")
-  if (!cliente %in% clientes$PerCod) stop("Elija un PerCod del corte operacional.", call. = FALSE)
+  if (!cliente %in% clientes$PerCod) stop("Elija un código de cliente del corte operacional.", call. = FALSE)
   id <- if (is.null(origen)) basename(tempfile(paste0(tipo, "-"))) else origen
   estado <- if (tipo != "contacto") .gestion_dominio(campos$estado, .gestion_estados[[tipo]])
   pedido <- .gestion_texto(campos$pedido_id)

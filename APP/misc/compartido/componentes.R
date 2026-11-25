@@ -71,6 +71,7 @@
         tabla[[campo]][hora] <- .formato_fecha_crm(instante)
       }
     }
+    names(tabla)[names(tabla) == "PerCod"] <- "Código de cliente"
     tabla
   })
   if (.disponible_api("racafeModulos", "TablaVancouverServer")) {
@@ -146,7 +147,7 @@
   datos
 }
 
-.selector_clientes <- function(id, etiqueta, multiple = FALSE, placeholder = "Buscar por PerCod o nombre") {
+.selector_clientes <- function(id, etiqueta, multiple = FALSE, placeholder = "Buscar por código de cliente o nombre") {
   shiny::selectizeInput(id, etiqueta, choices = NULL, multiple = multiple,
                         options = list(placeholder = placeholder, maxOptions = 50))
 }
