@@ -19,8 +19,9 @@ server <- function(input, output, session) {
   filtros <- Filtros("Filtros", publicaciones)
   operativo <- reactive(.filtrar_operacional(publicaciones(), filtros()))
 
-  identidad <- toupper(.crm_identidad_notas(session)$usuario %||% "HCYATE")
-  grupos <- toupper(session$groups %||% "ANALÍTICA")
+  sesion <- .crm_identidad_notas(session)
+  identidad <- toupper(sesion$usuario %||% "HCYATE")
+  grupos <- toupper(sesion$grupos %||% "ANALÍTICA")
 
   refrescar_gestion <- function() {
     actualizado <- isolate(publicaciones())

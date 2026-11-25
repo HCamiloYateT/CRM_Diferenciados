@@ -132,8 +132,10 @@
   if (.crm_usuario_autenticado(session$user)) {
     return(list(usuario = session$user, grupos = session$groups, local = FALSE))
   }
-  usuario <- .crm_usuario_rstudio(session$request$REMOTE_ADDR %||% "")
-  list(usuario = usuario, grupos = character(), local = !is.null(usuario))
+  desarrollo <- (interactive() && isTRUE(getOption("crm.desarrollo"))) ||
+    !is.null(.crm_usuario_rstudio(session$request$REMOTE_ADDR %||% ""))
+  if (desarrollo) return(list(usuario = "HCYATE", grupos = session$groups %||% "ANALÍTICA", local = TRUE))
+  list(usuario = NULL, grupos = session$groups, local = FALSE)
 }
 
 .crm_es_admin <- function(usuario, grupos = character()) {
