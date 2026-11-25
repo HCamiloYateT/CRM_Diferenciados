@@ -86,13 +86,13 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     observeEvent(input$proxima, {
       d <- datos()
       fila <- d[which(d[[llave]] == input$registro), , drop = FALSE]
-      if (nrow(fila) != 1L) return(showNotification("Seleccione un registro.", type = "warning"))
+      if (nrow(fila) != 1L) return(racafeForms::racafeNotify(session, "Seleccione un registro", type = "warning"))
       vinculo <- if (tipo == "oportunidad") "oportunidad_id" else "muestra_id"
       abrir("tarea", cliente = fila$PerCod, vinculos = stats::setNames(list(input$registro), vinculo))
     })
     observeEvent(input$editar, {
       if (!nzchar(input$registro %||% "")) {
-        return(showNotification("Seleccione un registro para actualizar.", type = "warning"))
+        return(racafeForms::racafeNotify(session, "Seleccione un registro para actualizar", type = "warning"))
       }
       req(input$registro %in% datos()[[llave]])
       abrir(tipo, origen = input$registro, vista = id)
@@ -142,21 +142,24 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     valores <- stats::setNames(lapply(campos, function(x) input[[paste0("gestion_", x)]]), campos)
     valores$PerCod <- if (ctx$nota) ctx$cliente else .gestion_texto(cliente_elegido())
     if (!is.null(ctx$origen) && !identical(valores$PerCod, ctx$cliente)) {
-      return(showNotification("El código de cliente del registro no puede cambiar.", type = "error"))
+      return(racafeForms::racafeNotify(session, "El código de cliente no puede cambiar", type = "error"))
     }
     tryCatch({
       t <- publicaciones()$operacional$tablas
-      .gestion_guardar(raiz, ctx$tipo, valores, ctx$origen, session$user, t$clientes, t$pedidos, ctx$esperado)
+      .gestion_guardar(raiz, ctx$tipo, valores, ctx$origen, session$user, t$clientes, t$pedidos, ctx$esperado,
+                       grupos = session$groups)
       contexto(NULL)
       removeModal()
       al_guardar()
-      showNotification("Gestión guardada.", type = "message")
-    }, error = function(e) showNotification(conditionMessage(e), type = "error"))
+      racafeForms::racafeNotify(session, "Gestión guardada", type = "success")
+    }, error = function(e) {
+      racafeForms::racafeNotify(session, "No se pudo guardar el registro", conditionMessage(e), type = "error")
+    })
   })
 
   function(tipo, origen = NULL, cliente = NULL, vista = NULL, vinculos = list()) {
-    if (!.prod_autorizado(session$user, Sys.getenv("CRM_GESTION_USUARIOS"))) {
-      showNotification("La captura requiere una cuenta autorizada para gestión.", type = "warning")
+    if (!.gestion_autorizada(session$user, session$groups)) {
+      racafeForms::racafeNotify(session, "La captura requiere una cuenta autorizada", type = "warning")
       return(invisible(NULL))
     }
     clientes <- .tabla_fuente(publicaciones(), "clientes")
@@ -191,7 +194,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     nota <- tipo == "tarea" && (identical(vista, "notas") || identical(valores$tipo, "NOTA"))
     personal <- nota || (tipo == "tarea" && identical(valores$tipo, "SEGUIMIENTO") && is.na(.gestion_texto(cliente)))
     if (!personal && (is.null(clientes) || !nrow(clientes))) {
-      showNotification("Publique un corte con clientes para registrar gestión.", type = "warning")
+      racafeForms::racafeNotify(session, "Publique un corte con clientes para registrar gestión", type = "warning")
       return(invisible(NULL))
     }
     campo <- function(nombre) {
