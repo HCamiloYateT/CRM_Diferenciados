@@ -60,6 +60,8 @@ TablaIndicadores <- function(id, abierto, vigentes) {
       valor <- resultado()
       shiny::req(!is.null(valor), !inherits(valor, "error"))
       datos <- valor$datos[c("Item", "Valor")]
+      claves <- names(.IND_NOMBRES_CORTOS)[match(datos$Item, .IND_NOMBRES_CORTOS)]
+      datos$Item <- unname(.IND_NOMBRES_VISIBLES[claves])
       colores <- cbind(NA_character_, unname(.IND_COLORES_TENDENCIA[valor$datos$tendencia]))
       list(datos = datos, colores = colores)
     })
