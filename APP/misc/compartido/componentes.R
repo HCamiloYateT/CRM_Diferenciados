@@ -12,6 +12,15 @@
   div(class = paste("alert", paste0("alert-", clases[[tipo]])), role = "status", texto)
 }
 
+.etiquetas_crm_ui <- function(etiquetas) {
+  etiquetas <- unique(trimws(as.character(etiquetas)))
+  etiquetas <- etiquetas[!is.na(etiquetas) & nzchar(etiquetas)]
+  if (!length(etiquetas)) return(NULL)
+  tags$ul(class = "crm-etiquetas list-unstyled d-flex flex-wrap mb-0", lapply(etiquetas, function(etiqueta) {
+    tags$li(racafeForms::racafeStatusBadge(etiqueta, variant = "info", size = "sm"))
+  }))
+}
+
 .boton <- function(id, etiqueta, simbolo) {
   if (.disponible_api("racafeForms", "racafeButton")) {
     return(racafeForms::racafeButton(id, etiqueta, icon = simbolo, size = "xxs", variant = "secondary", title = etiqueta))

@@ -160,7 +160,8 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
         return(showModal(modalDialog(
           title = fila$asunto, tags$p(fila$resultado), tags$p(fila$responsable),
           tags$p(.formato_fecha_crm(fila$seguimiento)),
-          lapply(e$etiqueta[e$tarea_id %in% fila$tarea_id], function(x) tags$span(class = "badge badge-secondary mr-1", x)),
+          racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(e$etiqueta[e$tarea_id %in% fila$tarea_id]),
+                                     empty = "Sin etiquetas"),
           if (length(a$textos)) tags$ul(lapply(seq_along(a$textos), function(i) {
             tags$li(if (a$cumplidas[i]) tags$del(a$textos[i]) else a$textos[i])
           }))

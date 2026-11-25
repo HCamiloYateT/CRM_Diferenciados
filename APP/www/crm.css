@@ -113,3 +113,7 @@
 }
 .crm-tareas-form .kb-collapse-toggle { background: transparent; border: 0; color: #495057; padding: 4px; }
 .crm-tareas-form .kpb-card { margin-bottom: 10px; }
+
+.crm-etiquetas { gap: .35rem; }
+.crm-etiquetas > li { min-width: 0; max-width: 100%; }
+.crm-etiquetas .rf-status-badge { white-space: normal; overflow-wrap: anywhere; }

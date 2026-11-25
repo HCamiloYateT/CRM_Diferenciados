@@ -81,9 +81,7 @@ CrearNotasUI <- function(id) {
     racafeForms::racafeInfoItem("TIPO", if (tarea) "TAREA" else "NOTA"),
     racafeForms::racafeInfoItem("TÍTULO", campos$asunto),
     racafeForms::racafeInfoItem("DESCRIPCIÓN", if (is.na(descripcion)) "Sin descripción" else descripcion),
-    racafeForms::racafeInfoItem("ETIQUETAS", if (length(campos$etiquetas)) {
-      paste(campos$etiquetas, collapse = ", ")
-    } else "Sin etiquetas")
+    racafeForms::racafeInfoItem("ETIQUETAS", .etiquetas_crm_ui(campos$etiquetas), empty = "Sin etiquetas")
   )
   if (tarea) {
     detalle <- c(detalle, list(
