@@ -25,7 +25,8 @@
       d <- tablas$tarea_actividades
       propias <- d$tarea_id %in% id
       fechas <- tablas$tarea_actividad_cumplimiento
-      if (!identical(.actividades_nota_lista(d, id, fechas), originales)) {
+      detalle <- tablas$tarea_actividad_detalle
+      if (!identical(.actividades_nota_lista(d, id, fechas, detalle), originales)) {
         stop("La lista cambió en otra sesión. Vuelva a abrir el registro.", call. = FALSE)
       }
       nuevas <- d[FALSE, , drop = FALSE]
@@ -38,6 +39,10 @@
       tablas$tarea_actividad_cumplimiento <- rbind(fechas[!fechas$tarea_id %in% id, , drop = FALSE],
         data.frame(tarea_id = rep(id, length(registradas)), orden = registradas,
                    fecha = actividades$fecha_cumplida[registradas]))
+      documentadas <- which(actividades$cumplida & (!is.na(actividades$autor) | !is.na(actividades$nota)))
+      tablas$tarea_actividad_detalle <- rbind(detalle[!detalle$tarea_id %in% id, , drop = FALSE],
+        data.frame(tarea_id = rep(id, length(documentadas)), orden = documentadas,
+                   autor = actividades$autor[documentadas], nota = actividades$nota[documentadas]))
     }
     if (!is.na(comentario)) {
       tablas$tarea_comentarios <- rbind(tablas$tarea_comentarios,
@@ -54,7 +59,7 @@
     ns <- session$ns
     registro <- reactiveVal(NULL)
     filas <- reactiveVal(data.frame(id = integer(), texto = character(), cumplida = logical(),
-                                    fecha_cumplida = as.POSIXct(character())))
+                                    fecha_cumplida = as.POSIXct(character()), autor = character(), nota = character()))
     secuencia <- 0L
     estados <- reactiveValues()
     observadores <- list()
@@ -66,6 +71,8 @@
         estado <- estados[[as.character(clave)]]
         d$cumplida[i] <- estado$cumplida
         d$fecha_cumplida[i] <- estado$fecha
+        d$autor[i] <- estado$autor
+        d$nota[i] <- if (estado$cumplida) .gestion_texto(input[[paste0("nota_", clave)]] %||% d$nota[i]) else NA
       }
       d
     }
@@ -76,12 +83,14 @@
       estados[[clave]] <- NULL
       output[[paste0("estado_actividad_", indice)]] <- NULL
       output[[paste0("fecha_actividad_", indice)]] <- NULL
+      output[[paste0("nota_actividad_", indice)]] <- NULL
     }
-    observar_fila <- function(indice, cumplida = FALSE, fecha = as.POSIXct(NA_character_)) {
+    observar_fila <- function(indice, cumplida = FALSE, fecha = as.POSIXct(NA_character_),
+                              autor = NA_character_) {
       force(indice)
       clave <- as.character(indice)
       boton <- paste0("cumplida_", indice)
-      estados[[clave]] <- list(cumplida = cumplida, fecha = fecha)
+      estados[[clave]] <- list(cumplida = cumplida, fecha = fecha, autor = autor)
       output[[paste0("estado_actividad_", indice)]] <- renderUI({
         .boton_estado_actividad(ns, boton, isTRUE(estados[[clave]]$cumplida))
       })
@@ -90,12 +99,21 @@
         if (!isTRUE(estado$cumplida)) return(NULL)
         fecha <- .formato_fecha_crm(estado$fecha)
         tags$small(class = "d-block text-muted text-nowrap", role = "status",
-                   if (is.na(fecha)) "Fecha de cumplimiento sin registrar" else paste("Cumplida el", fecha))
+                   if (is.na(fecha)) "Fecha de cumplimiento sin registrar" else paste("Cumplida el", fecha),
+                   if (!is.na(estado$autor)) paste("·", estado$autor))
+      })
+      output[[paste0("nota_actividad_", indice)]] <- renderUI({
+        if (!isTRUE(estados[[clave]]$cumplida)) return(NULL)
+        d <- isolate(filas())
+        nota <- d$nota[match(indice, d$id)]
+        racafeForms::racafeInputText(paste0("nota_", indice), label = NULL,
+                                     placeholder = "Nota de la actividad", value = if (is.na(nota)) "" else nota, ns = ns)
       })
       observadores[[clave]] <<- list(
         observeEvent(input[[boton]], {
           activa <- !isTRUE(estados[[clave]]$cumplida)
-          estados[[clave]] <- list(cumplida = activa, fecha = if (activa) Sys.time() else as.POSIXct(NA_character_))
+          estados[[clave]] <- list(cumplida = activa, fecha = if (activa) Sys.time() else as.POSIXct(NA_character_),
+                                   autor = if (activa) identidad$usuario else NA_character_)
         }),
         observeEvent(input[[paste0("quitar_", indice)]], {
           d <- leer()
@@ -114,13 +132,15 @@
       d <- filas()
       lapply(seq_len(nrow(d)), function(i) {
         fecha <- uiOutput(ns(paste0("fecha_actividad_", d$id[i])), inline = TRUE, class = "flex-shrink-0 ml-2")
-        .actividad_nota_ui(ns, d$id[i], i, d$texto[i], fecha)
+        tagList(.actividad_nota_ui(ns, d$id[i], i, d$texto[i], fecha),
+                uiOutput(ns(paste0("nota_actividad_", d$id[i]))))
       })
     })
     observeEvent(input$agregar, {
       secuencia <<- secuencia + 1L
       filas(rbind(leer(), data.frame(id = secuencia, texto = "", cumplida = FALSE,
-                                     fecha_cumplida = as.POSIXct(NA_character_))))
+                                     fecha_cumplida = as.POSIXct(NA_character_),
+                                     autor = NA_character_, nota = NA_character_)))
       observar_fila(secuencia)
     })
     observeEvent(input$cancelar, cerrar())
@@ -145,14 +165,17 @@
     function(fila) {
       tablas <- publicaciones()$crm$tablas
       originales <- .actividades_nota_lista(.gestion_filas(tablas, "tarea_actividades"), fila$tarea_id,
-                                           .gestion_filas(tablas, "tarea_actividad_cumplimiento"))
+                                           .gestion_filas(tablas, "tarea_actividad_cumplimiento"),
+                                           .gestion_filas(tablas, "tarea_actividad_detalle"))
       comentarios <- .gestion_filas(tablas, "tarea_comentarios")
       for (indice in filas()$id) limpiar_fila(indice)
       ids <- secuencia + seq_along(originales$textos)
       secuencia <<- secuencia + length(ids)
       filas(data.frame(id = ids, texto = originales$textos, cumplida = originales$cumplidas,
-                       fecha_cumplida = originales$fechas))
-      for (i in seq_along(ids)) observar_fila(ids[i], originales$cumplidas[i], originales$fechas[i])
+                       fecha_cumplida = originales$fechas, autor = originales$autores, nota = originales$notas))
+      for (i in seq_along(ids)) {
+        observar_fila(ids[i], originales$cumplidas[i], originales$fechas[i], originales$autores[i])
+      }
       tarea <- fila$Tipo == "list"
       registro(list(id = fila$tarea_id, tarea = tarea, originales = originales))
       showModal(racafeForms::racafeModalDetail(

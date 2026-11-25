@@ -91,14 +91,21 @@ TableroTareasUI <- function(id) {
   if (!.crm_usuario_autenticado(usuario)) {
     stop("La cuenta no tiene permiso para modificar gestión.", call. = FALSE)
   }
-  if (!accion %in% c("archivar", "desarchivar", "cumplir")) stop("Acción no permitida.", call. = FALSE)
-  if (accion == "cumplir" && (sesion_local || !.crm_es_admin(usuario, grupos))) {
+  if (!accion %in% c("archivar", "desarchivar", "cumplir", "eliminar")) stop("Acción no permitida.", call. = FALSE)
+  if (accion == "cumplir" && !.crm_es_admin(usuario, grupos)) {
     stop("Solo un administrador puede marcar la tarea como cumplida.", call. = FALSE)
   }
   .gestion_actualizar(raiz, function(t) {
     d <- .tablero_notas_datos(t, usuario, grupos, sesion_local)
     fila <- d[d$tarea_id %in% id, , drop = FALSE]
     if (nrow(fila) != 1L) stop("El registro ya no está disponible.", call. = FALSE)
+    if (accion == "eliminar") {
+      if (fila$Tipo != "text") stop("Las tareas solo se pueden archivar.", call. = FALSE)
+      tablas <- c("tareas", "tarea_creacion", "tarea_prioridad", "tarea_etiquetas", "tarea_actividades",
+                  "tarea_actividad_cumplimiento", "tarea_actividad_detalle", "tarea_archivo", "tarea_comentarios")
+      for (nombre in tablas) t[[nombre]] <- t[[nombre]][!t[[nombre]]$tarea_id %in% id, , drop = FALSE]
+      return(t)
+    }
     posicion <- match(id, t$tareas$tarea_id)
     if (accion == "archivar" && !fila$Archivado) {
       t$tarea_archivo <- .gestion_upsert(t$tarea_archivo, data.frame(tarea_id = id, estado = fila$estado), "tarea_id")
@@ -115,11 +122,15 @@ TableroTareasUI <- function(id) {
   }, usuario, paste("Tablero de notas y tareas", accion), id)
 }
 
-.actividades_nota_lista <- function(datos, id, fechas = .gestion_filas(NULL, "tarea_actividad_cumplimiento")) {
+.actividades_nota_lista <- function(datos, id, fechas = .gestion_filas(NULL, "tarea_actividad_cumplimiento"),
+                                    detalle = .gestion_filas(NULL, "tarea_actividad_detalle")) {
   filas <- datos[datos$tarea_id %in% id, , drop = FALSE]
   filas <- filas[order(filas$orden), , drop = FALSE]
   fechas <- fechas[fechas$tarea_id %in% id, , drop = FALSE]
-  list(textos = filas$actividad, cumplidas = filas$cumplida, fechas = fechas$fecha[match(filas$orden, fechas$orden)])
+  detalle <- detalle[detalle$tarea_id %in% id, , drop = FALSE]
+  indice <- match(filas$orden, detalle$orden)
+  list(textos = filas$actividad, cumplidas = filas$cumplida, fechas = fechas$fecha[match(filas$orden, fechas$orden)],
+       autores = detalle$autor[indice], notas = detalle$nota[indice])
 }
 
 .detalle_nota_ui <- function(fila, actividades, etiquetas, comentarios) {
@@ -141,7 +152,9 @@ TableroTareasUI <- function(id) {
           fecha_cumplida <- .formato_fecha_crm(actividades$fechas[i])
           tags$li(icon("circle-check", class = "text-success"), " ", texto,
                   tags$small(class = "d-block text-muted",
-                             if (is.na(fecha_cumplida)) "Fecha de cumplimiento sin registrar" else fecha_cumplida))
+                             if (is.na(fecha_cumplida)) "Fecha de cumplimiento sin registrar" else fecha_cumplida,
+                             if (!is.na(actividades$autores[i])) paste("·", actividades$autores[i])),
+                  if (!is.na(actividades$notas[i])) tags$div(actividades$notas[i]))
         })),
       empty = "Sin actividades"
     )
@@ -174,7 +187,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     identidad <- .crm_identidad_notas(session)
     usuario <- identidad$usuario %||% character()
     grupos <- identidad$grupos
-    admin <- !identidad$local && .crm_es_admin(usuario, grupos)
+    admin <- .crm_es_admin(usuario, grupos)
     tablas <- reactive(publicaciones()$crm$tablas)
     tarjetas <- new.env(parent = emptyenv())
     secuencia <- 0L
@@ -206,10 +219,15 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       d <- .gestion_filas(tablas(), "tarea_actividad_cumplimiento")
       split(d, d$tarea_id)
     })
+    detalle_actividad <- reactive({
+      d <- .gestion_filas(tablas(), "tarea_actividad_detalle")
+      split(d, d$tarea_id)
+    })
     actividades <- function(id) {
       d <- lista()[[id]] %||% .gestion_filas(NULL, "tarea_actividades")
       fechas <- cumplimiento()[[id]] %||% .gestion_filas(NULL, "tarea_actividad_cumplimiento")
-      .actividades_nota_lista(d, id, fechas)
+      detalle <- detalle_actividad()[[id]] %||% .gestion_filas(NULL, "tarea_actividad_detalle")
+      .actividades_nota_lista(d, id, fechas, detalle)
     }
     comentarios <- reactive({
       d <- .gestion_filas(tablas(), "tarea_comentarios")
@@ -244,6 +262,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     acciones <- function(fila) {
       if (!.crm_usuario_autenticado(usuario)) return(character())
       c(editar = "Editar",
+        if (fila$Tipo == "text") c(eliminar = "Eliminar nota"),
         if (fila$Archivado) c(desarchivar = "Desarchivar") else c(archivar = "Archivar"),
         if (admin && fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"))
     }
@@ -251,7 +270,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       resumen <- .resumen_tarjeta_nota(fila, lista)
       detalle <- .detalle_nota_ui(fila, lista, etiquetas, comentarios)
       if (!corporativo) return(div(class = "mb-2", tags$details(tags$summary(fila$asunto), detalle), resumen))
-      iconos <- c(editar = "pen", archivar = "archive", desarchivar = "box-open", cumplir = "check")
+      iconos <- c(editar = "pen", eliminar = "trash", archivar = "archive", desarchivar = "box-open", cumplir = "check")
       config <- lapply(iconos, function(icono) list(icono = icono, color = "#495057"))
       opciones <- acciones(fila)
       menu <- if (length(opciones)) racafeModulos::MenuAccionesUI(fila$tarea_id, opciones, config = config, ns = ns,
@@ -325,7 +344,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       if (evento$accion == "editar") return(editar(fila))
       pendiente(list(id = fila$tarea_id, accion = evento$accion))
       titulo <- switch(evento$accion, archivar = "¿Archivar este registro?",
-                       desarchivar = "¿Desarchivar este registro?", cumplir = "¿Marcar la tarea como cumplida?")
+                       desarchivar = "¿Desarchivar este registro?", cumplir = "¿Marcar la tarea como cumplida?", eliminar = "¿Eliminar esta nota?")
       racafeForms::racafeConfirm(session, "confirmar", titulo, fila$asunto, ns = ns)
     }
     observeEvent(input$AccionTarea, actuar(input$AccionTarea))
@@ -338,7 +357,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
         .tablero_notas_actuar(raiz, evento$id, evento$accion, usuario, grupos, identidad$local)
         refrescar()
         mensaje <- switch(evento$accion, archivar = "Registro archivado", desarchivar = "Registro desarchivado",
-                          cumplir = "Tarea marcada como cumplida")
+                          cumplir = "Tarea marcada como cumplida", eliminar = "Nota eliminada")
         racafeForms::racafeNotify(session, mensaje, type = "success")
       }, error = function(e) {
         racafeForms::racafeNotify(session, "No se pudo actualizar el registro", conditionMessage(e), type = "error")
