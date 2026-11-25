@@ -12,7 +12,11 @@ FiltrosUI <- function(id) {
       racafeForms::racafeInputSwitch(ns("embarque_todos"), "Todos", value = TRUE)
     ),
     racafeForms::racafeFormGroup(
-      uiOutput(ns("creador_pedido")),
+      racafeForms::racafeFormRow(
+        uiOutput(ns("creador_pedido")),
+        racafeForms::racafeInputSelect(ns("filtro_asesor"), "Asesor", c("Pendiente" = ""), disabled = TRUE),
+        responsive = "fixed"
+      ),
       racafeForms::racafeFormRow(
         racafeForms::racafeInputSelect(ns("filtro_segmento"), "Segmento", c("Pendiente" = ""), disabled = TRUE),
         racafeForms::racafeInputSelect(ns("filtro_categoria"), "Categoría", c("Pendiente" = ""), disabled = TRUE),
@@ -68,7 +72,7 @@ Filtros <- function(id, publicaciones) {
       activos <- catalogo[which(catalogo$vigente), , drop = FALSE]
       activos <- activos[order(activos$nombre, activos$usuario), , drop = FALSE]
       opciones <- stats::setNames(activos$usuario, activos$nombre)
-      racafeForms::racafeInputSelect(ns("filtro_creador"), "Asesor que creó el pedido", opciones, multiple = TRUE,
+      racafeForms::racafeInputSelect(ns("filtro_creador"), "Usuario que creó el pedido", opciones, multiple = TRUE,
                                     selected = intersect(isolate(input$filtro_creador), activos$usuario),
                                     empty_label = "Todos", uppercase = FALSE)
     })
