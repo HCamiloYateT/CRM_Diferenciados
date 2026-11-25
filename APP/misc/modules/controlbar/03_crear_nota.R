@@ -5,11 +5,11 @@
     .disponible_api("racafeModulos", "ListaDesplegableAgregable")
 }
 
-.actividad_nota_ui <- function(ns, id) {
+.actividad_nota_ui <- function(ns, id, numero = id) {
   div(id = ns(paste0("fila_", id)), class = "nota-actividad-row",
       div(class = "nota-actividad-texto",
           racafeForms::racafeInputText(paste0("actividad_", id), label = NULL,
-                                       placeholder = paste("Actividad", id), ns = ns)),
+                                       placeholder = paste("Actividad", numero), ns = ns)),
       div(class = "nota-actividad-accion", uiOutput(ns(paste0("estado_actividad_", id)))),
       div(class = "nota-actividad-accion",
           racafeForms::racafeButton(paste0("quitar_", id), label = NULL, icon = "trash", title = "Eliminar actividad",
@@ -121,6 +121,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
     actividades <- reactiveVal(1L)
     estados_actividad <- reactiveValues()
     siguiente_actividad <- 1L
+    numero_actividad <- 1L
     observadores <- list()
     limpiar_etiquetas <- reactiveVal(FALSE)
 
@@ -150,7 +151,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
     })
 
     quitar_actividad <- function(indice) {
-      if (length(actividades()) == 1L) {
+      if (indice == 1L) {
         updateTextInput(session, paste0("actividad_", indice), value = "")
         estados_actividad[[as.character(indice)]] <- FALSE
         return(invisible(NULL))
@@ -186,9 +187,10 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
     observar_actividad(1L)
     observeEvent(input$agregar_actividad, {
       siguiente_actividad <<- siguiente_actividad + 1L
+      numero_actividad <<- numero_actividad + 1L
       indice <- siguiente_actividad
       insertUI(selector = paste0("#", ns("lista_actividades")), where = "beforeEnd",
-               ui = .actividad_nota_ui(ns, indice), immediate = TRUE)
+               ui = .actividad_nota_ui(ns, indice, numero_actividad), immediate = TRUE)
       actividades(c(actividades(), indice))
       observar_actividad(indice)
     })
@@ -253,6 +255,21 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
       removeModal()
     })
 
+    limpiar_formulario <- function() {
+      racafeForms::racafeUpdateSelect(session, "tipo", selected = "NOTA")
+      updateTextInput(session, "titulo", value = "")
+      updateTextAreaInput(session, "descripcion", value = "")
+      racafeForms::racafeUpdateDate(session, "seguimiento", value = .HoyProductos() + 1L)
+      racafeForms::racafeUpdateSelect(session, "prioridad", selected = "MEDIA")
+      racafeForms::racafeUpdateSwitch(session, "incluir_actividades", value = FALSE)
+      for (indice in actividades()) quitar_actividad(indice)
+      numero_actividad <<- 1L
+      limpiar_etiquetas(TRUE)
+      if (is.null(etiquetas_modulo)) {
+        updateSelectizeInput(session, "etiquetas", selected = character())
+      } else etiquetas_modulo$actualizar(etiquetas_modulo$choices(), character())
+    }
+
     observeEvent(input$confirmar, {
       campos <- pendiente()
       req(!is.null(campos))
@@ -263,19 +280,25 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
         }
         removeModal()
       }, add = TRUE)
-      tryCatch({
+      guardado <- tryCatch({
         .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = identidad$usuario,
                          clientes = NULL, pedidos = NULL, grupos = identidad$grupos, sesion_local = identidad$local)
-        for (indice in actividades()) quitar_actividad(indice)
-        shinyWidgets::updateMaterialSwitch(session, "incluir_actividades", value = FALSE)
-        limpiar_etiquetas(TRUE)
-        al_guardar()
-        updateTextInput(session, "titulo", value = "")
-        updateTextAreaInput(session, "descripcion", value = "")
-        racafeForms::racafeNotify(session, "Registro guardado", type = "success")
+        TRUE
       }, error = function(e) {
         racafeForms::racafeNotify(session, "No se pudo guardar el registro", conditionMessage(e), type = "error")
+        FALSE
       })
+      if (!guardado) return(invisible(NULL))
+      limpiar_formulario()
+      actualizado <- tryCatch({
+        al_guardar()
+        TRUE
+      }, error = function(e) {
+        racafeForms::racafeNotify(session, "Registro guardado",
+                                  "No se pudo refrescar el tablero de notas y tareas.", type = "warning")
+        FALSE
+      })
+      if (actualizado) racafeForms::racafeNotify(session, "Registro guardado", type = "success")
     })
   })
 }
