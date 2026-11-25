@@ -72,10 +72,11 @@ CrearNotasUI <- function(id) {
   )
 }
 
-CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
+CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     identidad <- .crm_identidad_notas(session)
+    if (is.null(usuario)) usuario <- reactive(toupper(identidad$usuario %||% "HCYATE"))
     pendiente <- reactiveVal(NULL)
     actividades <- reactiveVal(1L)
     estados_actividad <- reactiveValues()
@@ -102,7 +103,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       racafeForms::racafeFormRow(
         racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
                                        selected = "MEDIA", empty = FALSE, search = FALSE, ns = ns),
-        racafeForms::racafeInputText("responsable", "Responsable", value = toupper(identidad$usuario %||% "HCYATE"),
+        racafeForms::racafeInputText("responsable", "Responsable", value = usuario(),
                                      disabled = TRUE, ns = ns),
         responsive = "fixed"
       )
