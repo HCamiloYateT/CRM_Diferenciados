@@ -13,7 +13,7 @@ library(bs4Dash)
 .ruta_app <- normalizePath(if (file.exists("global.R")) "." else "APP", mustWork = TRUE)
 .raiz_crm <- dirname(.ruta_app)
 .url_compartido <- paste0("https://raw.githubusercontent.com/HCamiloYateT/Compartido/",
-                          "6c29066361d10ae8330df96ede83586efdc864d6")
+                          "f95a29a33f3d2b36d19bae5a46bb89a01f61381e")
 .compartido_local <- Sys.getenv("CRM_COMPARTIDO_DIR")
 .logo_crm <- paste0(.url_compartido, "/img/logo2.png")
 if (nzchar(.compartido_local)) {
@@ -69,7 +69,8 @@ for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publica
   .incluir_recurso("Scripts/interactions.js", shiny::includeScript),
   .incluir_recurso("Scripts/crm-kanban.js", shiny::includeScript),
   .incluir_recurso("Styles/crm-nacional.css", shiny::includeCSS),
-  tags$head(tags$link(rel = "stylesheet", href = "crm.css"), tags$script(src = "crm.js"))
+  .incluir_recurso("Styles/crm-diferenciados.css", shiny::includeCSS),
+  .incluir_recurso("Scripts/crm-diferenciados.js", shiny::includeScript)
 ))
 
 # Interfaz ----
