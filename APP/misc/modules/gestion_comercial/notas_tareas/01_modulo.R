@@ -62,7 +62,11 @@ TableroTareasUI <- function(id) {
 .tablero_notas_datos <- function(tablas, usuario, grupos = character(), sesion_local = FALSE) {
   d <- .gestion_filas(tablas, "tareas")
   propios <- toupper(d$responsable) %in% toupper(usuario)
-  if (sesion_local) propios <- propios & is.na(d$PerCod)
+  creacion <- .gestion_filas(tablas, "tarea_creacion")
+  if (sesion_local) {
+    creados <- creacion$tarea_id[toupper(creacion$autor) %in% toupper(usuario)]
+    propios <- (propios | d$tarea_id %in% creados) & is.na(d$PerCod)
+  }
   admin <- !sesion_local && .crm_es_admin(usuario, grupos)
   d <- d[which((admin | propios) &
                 d$tipo %in% c("NOTA", "SEGUIMIENTO")), ,
@@ -72,12 +76,15 @@ TableroTareasUI <- function(id) {
   d$Prioridad <- prioridades$prioridad[match(d$tarea_id, prioridades$tarea_id)]
   d$Prioridad[d$Prioridad %in% "ALTA"] <- "IMPORTANTE"
   d$Prioridad[!d$Prioridad %in% names(.colores_prioridad_crm)] <- "MEDIA"
-  creacion <- .gestion_filas(tablas, "tarea_creacion")
+  catalogo <- .asesores_catalogo(tablas)
+  d <- d[!.asesor_usuario(d$responsable) %in% catalogo$usuario[!catalogo$vigente], , drop = FALSE]
   indice <- match(d$tarea_id, creacion$tarea_id)
   d$Creador <- creacion$autor[indice]
   d$Creador[is.na(indice)] <- d$responsable[is.na(indice)]
   d$Creada <- as.Date(creacion$fecha[indice], tz = "America/Bogota")
   d$Creada[is.na(indice)] <- d$fecha[is.na(indice)]
+  d$NombreResponsable <- .asesor_nombre(d$responsable, catalogo)
+  d$Creador <- .asesor_nombre(d$Creador, catalogo)
   d$Tipo <- ifelse(d$tipo == "NOTA", "text", "list")
   d$Cumplido <- d$Tipo == "list" & d$estado == "REALIZADA"
   d$Archivado <- d$tarea_id %in% archivo$tarea_id | d$estado == "CANCELADA"
@@ -137,7 +144,7 @@ TableroTareasUI <- function(id) {
   tagList(
     racafeForms::racafeInfoItem("Creado por", fila$Creador),
     racafeForms::racafeInfoItem("El", fecha, empty = "Fecha sin registrar"),
-    racafeForms::racafeInfoItem("Asignado a", fila$responsable),
+    racafeForms::racafeInfoItem("Asignado a", fila$NombreResponsable),
     if (!is.na(fila$resultado) && nzchar(fila$resultado)) racafeForms::racafeInfoItem("Descripción", fila$resultado),
     racafeForms::racafeInfoItem("Cronología de comentarios", .comentarios_nota_ui(comentarios, fila$tarea_id),
                                empty = "Sin comentarios"),
@@ -226,7 +233,9 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       d <- lista()[[id]] %||% .gestion_filas(NULL, "tarea_actividades")
       fechas <- cumplimiento()[[id]] %||% .gestion_filas(NULL, "tarea_actividad_cumplimiento")
       detalle <- detalle_actividad()[[id]] %||% .gestion_filas(NULL, "tarea_actividad_detalle")
-      .actividades_nota_lista(d, id, fechas, detalle)
+      lista <- .actividades_nota_lista(d, id, fechas, detalle)
+      lista$autores <- .asesor_nombre(lista$autores, .asesores_catalogo(tablas()))
+      lista
     }
     comentarios <- reactive({
       d <- .gestion_filas(tablas(), "tarea_comentarios")
@@ -275,7 +284,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       menu <- if (length(opciones)) racafeModulos::MenuAccionesUI(fila$tarea_id, opciones, config = config, ns = ns,
                                             id_evento = "AccionTarea",
                                             id_grupo = ns(paste0("acciones_tarea_", fila$tarea_id)))
-      responsable <- fila$responsable
+      responsable <- fila$NombreResponsable
       if (is.na(responsable) || !nzchar(responsable)) responsable <- "Sin responsable"
       tarjeta <- racafeModulos::TarjetaKanbanUI(
         fila$asunto, responsables = racafeForms::racafeStatusBadge(responsable, size = "xs"),
@@ -314,13 +323,15 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
         ancla <- paste0("#", ns(paste0("fin_", prioridad)))
         for (i in rev(seq_len(nrow(filas)))) {
           fila <- filas[i, c("tarea_id", "asunto", "resultado", "responsable", "seguimiento",
-                             "Creador", "Creada", "Tipo", "Prioridad", "Cumplido", "Archivado", "Vencida"), drop = FALSE]
+                             "Creador", "Creada", "NombreResponsable", "Tipo", "Prioridad", "Cumplido",
+                             "Archivado", "Vencida"), drop = FALSE]
           rownames(fila) <- NULL
           clave <- fila$tarea_id
           if (is.null(tarjetas[[clave]])) montar_tarjeta(clave, prioridad, ancla)
           tarjeta <- tarjetas[[clave]]
           historia <- comentarios()[[clave]] %||% .gestion_filas(NULL, "tarea_comentarios")
           rownames(historia) <- NULL
+          historia$autor <- .asesor_nombre(historia$autor, .asesores_catalogo(tablas()))
           tarjeta$contenido(list(fila = fila, lista = actividades(clave), etiquetas = etiquetas_tarjeta()[[clave]],
                                  comentarios = historia))
           ancla <- paste0("#", ns(tarjeta$id))

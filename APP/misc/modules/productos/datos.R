@@ -18,7 +18,12 @@
     datos <- datos[which(fechas >= periodo[1L] & fechas <= periodo[2L]), , drop = FALSE]
   }
   if (length(filtros$destino)) datos <- datos[datos$pais %in% filtros$destino, , drop = FALSE]
-  if (length(filtros$creador)) datos <- datos[datos$creador %in% filtros$creador, , drop = FALSE]
+  if (length(filtros$asesores_inactivos)) {
+    datos <- datos[!.asesor_usuario(datos$creador) %in% filtros$asesores_inactivos, , drop = FALSE]
+  }
+  if (length(filtros$creador)) {
+    datos <- datos[.asesor_usuario(datos$creador) %in% filtros$creador, , drop = FALSE]
+  }
   if (length(filtros$estado)) datos <- datos[datos$estado %in% filtros$estado, , drop = FALSE]
   if (!comparable) {
     if (length(filtros$cliente)) datos <- datos[datos$PerCod %in% filtros$cliente, , drop = FALSE]

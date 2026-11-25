@@ -68,7 +68,7 @@
     if (nzchar(filtros$percod)) clientes <- clientes[clientes$PerCod == filtros$percod, , drop = FALSE]
   }
   seleccion_pedido <- length(filtros$periodo) == 2L || length(filtros$estado) ||
-    length(filtros$destino) || length(filtros$creador) || length(filtros$embarque)
+    length(filtros$destino) || length(filtros$creador) || length(filtros$embarque) || length(filtros$asesores_inactivos)
   if (!is.null(pedidos)) {
     if (!is.null(clientes)) pedidos <- pedidos[pedidos$PerCod %in% clientes$PerCod, , drop = FALSE]
     if (length(filtros$periodo) == 2L) {
@@ -76,7 +76,13 @@
       pedidos <- pedidos[which(fechas >= filtros$periodo[1L] & fechas <= filtros$periodo[2L]), , drop = FALSE]
     }
     if (length(filtros$embarque)) pedidos <- pedidos[pedidos$periodo_cabecera %in% filtros$embarque, , drop = FALSE]
-    if (length(filtros$creador)) pedidos <- pedidos[pedidos$PdcUsu %in% filtros$creador, , drop = FALSE]
+    if ("PdcUsu" %in% names(pedidos)) {
+      clave <- .asesor_usuario(pedidos$PdcUsu)
+      visibles <- !clave %in% filtros$asesores_inactivos
+      if (length(filtros$creador)) visibles <- visibles & clave %in% filtros$creador
+      pedidos <- pedidos[visibles, , drop = FALSE]
+      pedidos$Asesor <- .asesor_nombre(pedidos$PdcUsu, .asesores_catalogo(publicaciones$crm$tablas))
+    }
     if (length(filtros$estado)) pedidos <- pedidos[pedidos$estado_original %in% filtros$estado, , drop = FALSE]
     if (length(filtros$destino)) {
       destino <- lineas$pedido_id[lineas$PaiCodDtn %in% filtros$destino]

@@ -47,7 +47,7 @@ source(file.path(.raiz_crm, "DataPrep.R"), local = TRUE)
 
 for (.archivo in c("config/vistas.R", "compartido/componentes.R", "datos/publicacion_ui.R",
                    "modules/vista.R", "modules/productos/datos.R", "modules/productos/cestas.R",
-                   "modules/productos/modulo.R", "modules/gestion/datos.R", "modules/gestion/modulo.R",
+                   "modules/productos/modulo.R", "modules/gestion/datos.R", "modules/gestion/asesores.R", "modules/gestion/modulo.R",
                    "modules/operacion/constantes.R", "modules/operacion/funciones.R", "modules/operacion/modulo.R",
                    "modules/orientacion.R", "modules/indicadores_mercado/constantes.R",
                    "modules/indicadores_mercado/datos.R", "modules/indicadores_mercado/modulos.R",

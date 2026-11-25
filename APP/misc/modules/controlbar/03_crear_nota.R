@@ -120,26 +120,29 @@ CrearNotasUI <- function(id, en_modal = FALSE) {
   )
 }
 
-.enviar_asignacion_nota <- function(campos, creador, responsable) {
-  usuario <- sub("@racafe[.]com$", "", tolower(trimws(responsable)))
-  if (!grepl("^[a-z0-9._-]+$", usuario)) stop("El responsable no tiene un usuario de correo válido.")
-  para <- paste0(usuario, "@racafe.com")
+.enviar_asignacion_nota <- function(campos, creador, responsable, catalogo) {
+  correo <- catalogo$correo[match(responsable, catalogo$usuario)]
+  para <- if (is.na(correo)) .asesor_correo(responsable) else correo
+  if (!grepl("^[a-z0-9._%+-]+@racafe[.]com$", para)) stop("El responsable no tiene un correo válido.")
   tarea <- identical(campos$tipo, "SEGUIMIENTO")
-  fecha <- format(campos$fecha, "%d/%m/%y")
+  asignado <- .asesor_nombre(responsable, catalogo)
   descripcion <- .gestion_texto(campos$resultado)
-  cabecera <- if (tarea) "Se asignó una tarea en CRM Diferenciados." else "Se asignó una nota en CRM Diferenciados."
-  mensaje <- paste(c(cabecera,
-                   paste0("Título: ", campos$asunto), paste0("Creado por: ", creador),
-                   paste0("Fecha de creación: ", fecha), paste0("Asignado a: ", responsable),
-                   if (tarea) paste0("Vencimiento: ", .formato_fecha_crm(campos$seguimiento)),
-                   if (!is.na(descripcion)) paste0("Descripción: ", descripcion)), collapse = " · ")
+  datos <- list(tipo = if (tarea) "Nueva tarea" else "Nueva nota", titulo = campos$asunto,
+                creador = .asesor_nombre(creador, catalogo), fecha = format(campos$fecha, "%d/%m/%y"),
+                responsable = asignado,
+                vencimiento = if (tarea) .formato_fecha_crm(campos$seguimiento) else "Sin vencimiento",
+                prioridad = campos$prioridad, descripcion = if (is.na(descripcion)) "Sin descripción" else descripcion)
   if (!requireNamespace("racafeMail", quietly = TRUE)) stop("El paquete racafeMail no está instalado.")
   config <- racafeMail::racafeMailConfig()
   if (!nzchar(config$remitente) || !nzchar(config$credenciales) || !file.exists(config$credenciales) ||
       dir.exists(config$credenciales) || file.access(config$credenciales, 4L) != 0L) {
     stop("Falta configurar el remitente o las credenciales SMTP de racafeMail.")
   }
-  racafeMail::racafeMailNotificacion(para = para, nombre = responsable, mensaje = mensaje, config = config)
+  if (utils::packageVersion("racafeMail") >= "0.2.1") {
+    return(racafeMail::racafeMailEnviar(para, "asignacion_crm", datos, config))
+  }
+  mensaje <- paste(unlist(datos, use.names = FALSE), collapse = " · ")
+  racafeMail::racafeMailNotificacion(para = para, nombre = asignado, mensaje = mensaje, config = config)
 }
 
 CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abrir = NULL) {
@@ -181,12 +184,21 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
       } else etiquetas_modulo$actualizar(opciones, seleccion)
     })
 
+    responsables <- reactive({
+      d <- .asesores_catalogo(publicaciones()$crm$tablas)
+      actual <- .asesor_usuario(identidad$usuario)
+      claves <- d$usuario[d$vigente]
+      claves <- unique(c(claves, setdiff(actual, d$usuario)))
+      stats::setNames(claves, .asesor_nombre(claves, d))
+    })
     output$asignacion <- renderUI({
+      opciones <- responsables()
       racafeForms::racafeFormRow(
         racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
                                        selected = "MEDIA", empty = FALSE, search = FALSE, required = TRUE, ns = ns),
-        racafeForms::racafeInputText("responsable", "Responsable", value = usuario(),
-                                     disabled = TRUE, ns = ns),
+        racafeForms::racafeInputSelect("responsable", "Responsable", opciones,
+                                       selected = intersect(isolate(input$responsable) %||% usuario(), opciones),
+                                       required = TRUE, ns = ns),
         responsive = "fixed"
       )
     })
@@ -272,8 +284,12 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
         return(racafeForms::racafeNotify(session, "Campos pendientes",
                                         "Revise los campos señalados antes de continuar.", type = "warning"))
       }
+      responsable <- .asesor_usuario(input$responsable %||% identidad$usuario)
+      if (!responsable %in% responsables()) {
+        return(racafeForms::racafeNotify(session, "Seleccione un responsable vigente", type = "warning"))
+      }
       titulo <- valores$titulo
-      pendiente(list(tipo = tipo, asunto = titulo, resultado = input$descripcion,
+      pendiente(list(tipo = tipo, responsable = responsable, asunto = titulo, resultado = input$descripcion,
                      fecha = .HoyProductos(), seguimiento = valores$seguimiento,
                      estado = if (tarea) "PENDIENTE" else "REALIZADA",
                      prioridad = valores$prioridad,
@@ -283,7 +299,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
       if (en_modal) {
         titulo_confirmacion <- if (tarea) "¿Crear esta tarea?" else "¿Crear esta nota?"
         racafeForms::racafeConfirm(session, "confirmar_modal", titulo_confirmacion, titulo, ns = ns)
-      } else showModal(.confirmacion_nota_ui(pendiente(), usuario(), ns))
+      } else showModal(.confirmacion_nota_ui(pendiente(), names(responsables())[match(responsable, responsables())], ns))
     })
 
     observeEvent(input$cancelar, {
@@ -343,8 +359,8 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
       })
       if (actualizado) racafeForms::racafeNotify(session, "Registro guardado", type = "success")
       tryCatch({
-        responsable <- identidad$usuario
-        .enviar_asignacion_nota(campos, identidad$usuario, responsable)
+        .enviar_asignacion_nota(campos, identidad$usuario, campos$responsable,
+                               .asesores_catalogo(publicaciones()$crm$tablas))
       }, error = function(e) {
         detalle <- conditionMessage(e)
         if (!startsWith(detalle, "Falta configurar") && !startsWith(detalle, "El paquete racafeMail")) {

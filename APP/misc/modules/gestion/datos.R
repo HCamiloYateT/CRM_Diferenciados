@@ -15,6 +15,8 @@
   fecha <- as.Date(ch)
   instante <- as.POSIXct(ch)
   list(
+    asesores = contrato("usuario", data.frame(usuario = ch, nombre = ch, correo = ch, vigente = logical()),
+                         requeridos = c("nombre", "correo", "vigente")),
     oportunidades = .prod_contrato_oportunidad(),
     oportunidad_detalle = contrato("oportunidad_id",
       data.frame(oportunidad_id = ch, PerCod = ch, asunto = ch, producto = ch, sacos = numeric(),
@@ -234,6 +236,7 @@
         estado = estado, pedido_id = pedido, resultado = .gestion_texto(campos$resultado),
         responsable = if (is.null(origen)) usuario else actual$responsable, actualizada = ahora)
     } else if (tipo == "tarea") {
+      responsable <- if (is.null(origen)) .asesor_asignado(t, usuario, campos$responsable) else actual$responsable
       fila <- data.frame(tarea_id = id, PerCod = cliente,
         tipo = .gestion_dominio(campos$tipo, c("LLAMADA", "REUNION", "COMPROMISO", "SEGUIMIENTO", "NOTA")),
         asunto = .gestion_campo(campos$asunto, "asunto"), resultado = .gestion_texto(campos$resultado),
@@ -241,7 +244,7 @@
         seguimiento = .gestion_fecha(campos$seguimiento, "fecha de seguimiento",
                                       requerida = estado == "PENDIENTE"),
         estado = estado, oportunidad_id = opp, muestra_id = muestra,
-        responsable = if (is.null(origen)) usuario else actual$responsable, actualizada = ahora)
+        responsable = responsable, actualizada = ahora)
     } else {
       fila <- data.frame(contacto_id = id, PerCod = cliente, nombre = .gestion_campo(campos$asunto, "nombre"),
         correo = .gestion_texto(campos$correo), telefono = .gestion_texto(campos$telefono),
