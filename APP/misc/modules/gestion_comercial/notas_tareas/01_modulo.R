@@ -22,8 +22,44 @@ TableroTareasUI <- function(id) {
         div(class = "crm-tareas-switches",
             racafeForms::racafeInputSwitch("archivadas", "Incluir archivadas", ns = ns),
             racafeForms::racafeInputSwitch("cumplidas", "Incluir cumplidas", ns = ns)),
-        uiOutput(ns("tablero"))
+        .tablero_notas_ui(ns)
       ))
+}
+
+# Estructura fija del tablero ----
+.tablero_notas_corporativo <- function() {
+  all(vapply(c("TarjetaKanbanUI", "ColumnaKanbanUI", "TableroKanbanUI", "MenuAccionesUI"),
+             function(api) .disponible_api("racafeModulos", api), logical(1)))
+}
+
+.tablero_notas_ui <- function(ns) {
+  colores <- .colores_prioridad_crm
+  corporativo <- .tablero_notas_corporativo()
+  columnas <- lapply(names(colores), function(prioridad) {
+    ancla <- tags$template(id = ns(paste0("fin_", prioridad)))
+    vacia <- conditionalPanel(sprintf("output.cantidad_%s === '0'", prioridad),
+                              .nota("Sin registros en esta prioridad."), ns = ns)
+    cuerpo <- tagList(ancla, vacia)
+    contador <- textOutput(ns(paste0("cantidad_", prioridad)), inline = TRUE)
+    filtro <- uiOutput(ns(paste0("filtro_", prioridad)), inline = TRUE)
+    colapsar <- tags$button(type = "button", class = "kb-collapse-toggle", `data-kb-toggle` = "true",
+                            title = paste("Colapsar", prioridad), `aria-expanded` = "true", icon("chevron-down"))
+    columna <- if (corporativo) {
+      contenido <- racafeModulos::ColumnaKanbanUI(prioridad, cuerpo = cuerpo, cantidad = 0,
+                                                  color = colores[[prioridad]], header_filled = FALSE,
+                                                  acciones = tagList(filtro, colapsar))
+      htmltools::tagQuery(contenido)$find(".kpb-col-count")$empty()$append(contador)$allTags()
+    } else div(class = "crm-panel", h2(prioridad), contador, filtro, cuerpo)
+    condicion <- sprintf("!input.prioridad || !input.prioridad.length || input.prioridad.includes('%s')", prioridad)
+    conditionalPanel(condicion, columna, ns = ns, class = "kpb-slot", `data-kb-stage` = prioridad)
+  })
+  if (corporativo) {
+    tablero <- racafeModulos::TableroKanbanUI(columnas, ns = ns)
+    return(tagAppendAttributes(tablero, class = "rm-task-board-shared"))
+  }
+  tagList(racafeForms::racafeFormRow(selectInput(ns("registro"), "Registro", character()),
+                                    uiOutput(ns("operaciones")), responsive = "fixed"),
+          div(class = "crm-kpis", columnas))
 }
 
 .tablero_notas_datos <- function(tablas, usuario, grupos = character(), sesion_local = FALSE) {
@@ -126,8 +162,21 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     grupos <- identidad$grupos
     admin <- !identidad$local && .crm_es_admin(usuario, grupos)
     tablas <- reactive(publicaciones()$crm$tablas)
+    tarjetas <- new.env(parent = emptyenv())
+    secuencia <- 0L
+    corporativo <- .tablero_notas_corporativo()
     for (prioridad in names(.colores_prioridad_crm)) local({
       columna <- prioridad
+      output[[paste0("filtro_", columna)]] <- renderUI({
+        activa <- columna %in% solo_vencidas()
+        tagAppendAttributes(
+          racafeForms::racafeButton(paste0("vencidas_", columna), NULL, icon = "filter", size = "xxs",
+                                    title = "Filtrar vencidas", variant = if (activa) "primary" else "secondary",
+                                    ns = ns),
+          `aria-label` = paste("Filtrar vencidas", columna), `aria-pressed` = tolower(as.character(activa))
+        )
+      })
+      output[[paste0("cantidad_", columna)]] <- renderText(sum(seleccion()$Prioridad == columna))
       observeEvent(input[[paste0("vencidas_", columna)]], {
         activas <- solo_vencidas()
         solo_vencidas(if (columna %in% activas) setdiff(activas, columna) else c(activas, columna))
@@ -135,8 +184,15 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
     })
     notas <- reactive(.tablero_notas_datos(tablas(), usuario, grupos, identidad$local))
     etiquetas <- reactive(.gestion_filas(tablas(), "tarea_etiquetas"))
-    lista <- reactive(.gestion_filas(tablas(), "tarea_actividades"))
-    actividades <- function(id) .actividades_nota_lista(lista(), id)
+    lista <- reactive({
+      d <- .gestion_filas(tablas(), "tarea_actividades")
+      d <- d[order(d$orden), , drop = FALSE]
+      split(d, d$tarea_id)
+    })
+    actividades <- function(id) {
+      d <- lista()[[id]]
+      list(textos = d$actividad %||% character(), cumplidas = d$cumplida %||% logical())
+    }
     output$filtro_etiquetas <- renderUI({
       opciones <- sort(unique(etiquetas()$etiqueta[etiquetas()$tarea_id %in% notas()$tarea_id]))
       racafeForms::racafeInputSelect("etiquetas", "Etiquetas", c("Sin etiqueta" = "__sin__", opciones),
@@ -169,55 +225,62 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
         if (fila$Archivado) c(desarchivar = "Desarchivar") else c(archivar = "Archivar"),
         if (admin && fila$Tipo == "list" && !fila$Cumplido && !fila$Archivado) c(cumplir = "Marcar cumplida"))
     }
-    output$tablero <- renderUI({
-      d <- seleccion()
-      colores <- .colores_prioridad_crm
-      prioridades <- if (length(input$prioridad)) intersect(names(colores), input$prioridad) else names(colores)
-      corporativo <- all(vapply(c("TarjetaKanbanUI", "ColumnaKanbanUI", "TableroKanbanUI", "MenuAccionesUI"),
-                               function(api) .disponible_api("racafeModulos", api), logical(1)))
-      columnas <- lapply(prioridades, function(prioridad) {
-        filas <- d[d$Prioridad == prioridad, , drop = FALSE]
-        activa <- prioridad %in% solo_vencidas()
-        filtro <- tagAppendAttributes(
-          racafeForms::racafeButton(paste0("vencidas_", prioridad), NULL, icon = "filter", size = "xxs",
-                                    title = "Filtrar vencidas", variant = if (activa) "primary" else "secondary",
-                                    ns = ns),
-          `aria-label` = paste("Filtrar vencidas", prioridad), `aria-pressed` = tolower(as.character(activa))
-        )
-        tarjetas <- lapply(seq_len(nrow(filas)), function(i) {
-          fila <- filas[i, , drop = FALSE]
-          resumen <- .resumen_tarjeta_nota(fila, actividades(fila$tarea_id))
-          if (!corporativo) return(div(class = "mb-2", strong(fila$asunto), resumen, tags$p(fila$resultado)))
-          menu <- racafeModulos::MenuAccionesUI(fila$tarea_id, acciones(fila), ns = ns, id_evento = "AccionTarea",
-                                                id_grupo = ns(paste0("acciones_tarea_", fila$tarea_id)))
-          responsable <- fila$responsable
-          if (is.na(responsable) || !nzchar(responsable)) responsable <- "Sin responsable"
-          tarjeta <- racafeModulos::TarjetaKanbanUI(
-            fila$asunto, responsables = racafeForms::racafeStatusBadge(responsable, size = "xs"),
-            contexto = if (fila$Tipo == "list") "TAREA" else "NOTA",
-            cuerpo = tags$p(fila$resultado), menu = menu, color = colores[[prioridad]]
-          )
-          htmltools::tagAppendChild(tarjeta, resumen)
-        })
-        if (!corporativo) return(div(class = "crm-panel", h2(prioridad), filtro, tarjetas))
-        colapsar <- tags$button(type = "button", class = "kb-collapse-toggle", `data-kb-toggle` = "true",
-                                title = paste("Colapsar", prioridad), `aria-expanded` = "true", icon("chevron-down"))
-        tags$div(class = "kpb-slot", `data-kb-stage` = prioridad,
-                 racafeModulos::ColumnaKanbanUI(prioridad, cantidad = nrow(filas), color = colores[[prioridad]],
-                   header_filled = FALSE, acciones = tagList(filtro, colapsar),
-                   cuerpo = if (length(tarjetas)) tagList(tarjetas) else .nota("Sin registros en esta prioridad.")))
-      })
-      if (corporativo) {
-        tablero <- racafeModulos::TableroKanbanUI(columnas, ns = ns)
-        return(tagAppendAttributes(tablero, class = "rm-task-board-shared"))
-      }
-      div(
-        if (nrow(d)) racafeForms::racafeFormRow(
-          selectInput(ns("registro"), "Registro", setNames(d$tarea_id, d$asunto)),
-          uiOutput(ns("operaciones")), responsive = "fixed"
-        ),
-        div(class = "crm-kpis", columnas)
+    tarjeta_ui <- function(fila, lista) {
+      resumen <- .resumen_tarjeta_nota(fila, lista)
+      if (!corporativo) return(div(class = "mb-2", strong(fila$asunto), resumen, tags$p(fila$resultado)))
+      iconos <- c(abrir = "eye", editar = "pen", archivar = "archive", desarchivar = "box-open", cumplir = "check")
+      config <- lapply(iconos, function(icono) list(icono = icono, color = "#495057"))
+      menu <- racafeModulos::MenuAccionesUI(fila$tarea_id, acciones(fila), config = config, ns = ns,
+                                            id_evento = "AccionTarea",
+                                            id_grupo = ns(paste0("acciones_tarea_", fila$tarea_id)))
+      responsable <- fila$responsable
+      if (is.na(responsable) || !nzchar(responsable)) responsable <- "Sin responsable"
+      tarjeta <- racafeModulos::TarjetaKanbanUI(
+        fila$asunto, responsables = racafeForms::racafeStatusBadge(responsable, size = "xs"),
+        contexto = if (fila$Tipo == "list") "TAREA" else "NOTA",
+        cuerpo = tags$p(fila$resultado), menu = menu, color = .colores_prioridad_crm[[fila$Prioridad]]
       )
+      htmltools::tagAppendChild(tarjeta, resumen)
+    }
+    montar_tarjeta <- function(clave, prioridad, ancla) {
+      secuencia <<- secuencia + 1L
+      id <- paste0("tarjeta_", secuencia)
+      contenido <- reactiveVal(NULL)
+      output[[id]] <- renderUI({
+        datos <- contenido()
+        req(datos)
+        tarjeta_ui(datos$fila, datos$lista)
+      })
+      insertUI(ancla, "beforeBegin", uiOutput(ns(id)), immediate = TRUE)
+      tarjetas[[clave]] <- list(id = id, contenido = contenido, prioridad = prioridad)
+    }
+    observe({
+      d <- seleccion()
+      if (!corporativo) {
+        updateSelectInput(session, "registro", choices = setNames(d$tarea_id, d$asunto),
+                          selected = intersect(isolate(input$registro), d$tarea_id))
+      }
+      for (clave in ls(tarjetas, all.names = TRUE)) {
+        tarjeta <- tarjetas[[clave]]
+        if (identical(d$Prioridad[match(clave, d$tarea_id)], tarjeta$prioridad)) next
+        removeUI(paste0("#", ns(tarjeta$id)), immediate = TRUE)
+        output[[tarjeta$id]] <- NULL
+        rm(list = clave, envir = tarjetas)
+      }
+      for (prioridad in names(.colores_prioridad_crm)) {
+        filas <- d[d$Prioridad == prioridad, , drop = FALSE]
+        ancla <- paste0("#", ns(paste0("fin_", prioridad)))
+        for (i in rev(seq_len(nrow(filas)))) {
+          fila <- filas[i, c("tarea_id", "asunto", "resultado", "responsable", "seguimiento",
+                             "Tipo", "Prioridad", "Cumplido", "Archivado", "Vencida"), drop = FALSE]
+          rownames(fila) <- NULL
+          clave <- fila$tarea_id
+          if (is.null(tarjetas[[clave]])) montar_tarjeta(clave, prioridad, ancla)
+          tarjeta <- tarjetas[[clave]]
+          tarjeta$contenido(list(fila = fila, lista = actividades(clave)))
+          ancla <- paste0("#", ns(tarjeta$id))
+        }
+      }
     })
     output$operaciones <- renderUI({
       d <- seleccion()
