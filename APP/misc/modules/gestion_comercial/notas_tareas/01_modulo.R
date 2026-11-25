@@ -20,9 +20,12 @@ TableroTareasUI <- function(id) {
       ))
 }
 
-.tablero_notas_datos <- function(tablas, usuario, grupos = character()) {
+.tablero_notas_datos <- function(tablas, usuario, grupos = character(), sesion_local = FALSE) {
   d <- .gestion_filas(tablas, "tareas")
-  d <- d[which((.crm_es_admin(usuario, grupos) | toupper(d$responsable) %in% toupper(usuario)) &
+  propios <- toupper(d$responsable) %in% toupper(usuario)
+  if (sesion_local) propios <- propios & is.na(d$PerCod)
+  admin <- !sesion_local && .crm_es_admin(usuario, grupos)
+  d <- d[which((admin | propios) &
                 d$tipo %in% c("NOTA", "SEGUIMIENTO")), ,
          drop = FALSE]
   prioridades <- .gestion_filas(tablas, "tarea_prioridad")
@@ -36,12 +39,12 @@ TableroTareasUI <- function(id) {
   d[order(d$seguimiento, -as.numeric(d$fecha), na.last = TRUE), , drop = FALSE]
 }
 
-.tablero_notas_actuar <- function(raiz, id, accion, usuario, grupos = character()) {
+.tablero_notas_actuar <- function(raiz, id, accion, usuario, grupos = character(), sesion_local = FALSE) {
   if (!.crm_usuario_autenticado(usuario)) {
     stop("La cuenta no tiene permiso para modificar gestión.", call. = FALSE)
   }
   .gestion_actualizar(raiz, function(t) {
-    d <- .tablero_notas_datos(t, usuario, grupos)
+    d <- .tablero_notas_datos(t, usuario, grupos, sesion_local)
     fila <- d[d$tarea_id %in% id, , drop = FALSE]
     if (nrow(fila) != 1L) stop("El registro ya no está disponible.", call. = FALSE)
     posicion <- match(id, t$tareas$tarea_id)
@@ -68,10 +71,11 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     pendiente <- reactiveVal(NULL)
-    usuario <- session$user %||% character()
-    grupos <- session$groups
+    identidad <- .crm_identidad_notas(session)
+    usuario <- identidad$usuario %||% character()
+    grupos <- identidad$grupos
     tablas <- reactive(publicaciones()$crm$tablas)
-    notas <- reactive(.tablero_notas_datos(tablas(), usuario, grupos))
+    notas <- reactive(.tablero_notas_datos(tablas(), usuario, grupos, identidad$local))
     etiquetas <- reactive(.gestion_filas(tablas(), "tarea_etiquetas"))
     lista <- reactive(.gestion_filas(tablas(), "tarea_actividades"))
     actividades <- function(id) {
@@ -174,7 +178,7 @@ TableroTareas <- function(id, publicaciones, raiz, refrescar, editar) {
       pendiente(NULL)
       removeModal()
       tryCatch({
-        .tablero_notas_actuar(raiz, evento$id, evento$accion, usuario, grupos)
+        .tablero_notas_actuar(raiz, evento$id, evento$accion, usuario, grupos, identidad$local)
         refrescar()
         racafeForms::racafeNotify(session, "Registro actualizado", type = "success")
       }, error = function(e) {

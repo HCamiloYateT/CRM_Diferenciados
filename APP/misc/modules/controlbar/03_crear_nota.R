@@ -75,6 +75,7 @@ CrearNotasUI <- function(id) {
 CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    identidad <- .crm_identidad_notas(session)
     pendiente <- reactiveVal(NULL)
     actividades <- reactiveVal(1L)
     estados_actividad <- reactiveValues()
@@ -101,7 +102,7 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       racafeForms::racafeFormRow(
         racafeForms::racafeInputSelect("prioridad", "Prioridad", names(.colores_prioridad_crm),
                                        selected = "MEDIA", empty = FALSE, search = FALSE, ns = ns),
-        racafeForms::racafeInputText("responsable", "Responsable", value = toupper(session$user %||% "HCYATE"),
+        racafeForms::racafeInputText("responsable", "Responsable", value = toupper(identidad$usuario %||% "HCYATE"),
                                      disabled = TRUE, ns = ns),
         responsive = "fixed"
       )
@@ -153,9 +154,9 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
 
     observeEvent(input$crear, {
       pendiente(NULL)
-      if (!.crm_usuario_autenticado(session$user)) {
+      if (!.crm_usuario_autenticado(identidad$usuario)) {
         return(racafeForms::racafeNotify(session, "Sesión sin usuario autenticado",
-                                        "Abra el CRM desde Analítica y vuelva a iniciar sesión para guardar notas o tareas.", type = "warning"))
+                                        "Abra el CRM desde Analítica o desde su sesión personal de RStudio Server.", type = "warning"))
       }
       tipo <- input$tipo %||% ""
       tarea <- identical(tipo, "SEGUIMIENTO")
@@ -215,8 +216,8 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar) {
       pendiente(NULL)
       removeModal()
       tryCatch({
-        .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = session$user,
-                         clientes = NULL, pedidos = NULL, grupos = session$groups)
+        .gestion_guardar(raiz, "tarea", campos, origen = NULL, usuario = identidad$usuario,
+                         clientes = NULL, pedidos = NULL, grupos = identidad$grupos, sesion_local = identidad$local)
         for (indice in actividades()) quitar_actividad(indice)
         shinyWidgets::updateMaterialSwitch(session, "incluir_actividades", value = FALSE)
         limpiar_etiquetas(TRUE)
