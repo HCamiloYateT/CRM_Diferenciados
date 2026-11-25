@@ -82,7 +82,7 @@ ProductosUI <- function(id) {
   data.frame(Validación = c("Pedidos sin marca", "Pedidos sin nombre comercial", "Lotes con atributos faltantes",
                             "Filas con código sin descripción", "Códigos con descripciones distintas",
                             "Descripciones repetidas en distintos códigos", "Conflictos entre línea y lote",
-                            "Sacos sin atribución", "Pedidos sin PerCod", "Líneas con sacos desconocidos"),
+                            "Sacos sin atribución", "Pedidos sin código de cliente", "Líneas con sacos desconocidos"),
              Resultado = c(.prod_contar(datos$pedido_id[sin_marca]), .prod_contar(datos$pedido_id[sin_nombre]),
                            if (any(lote)) .prod_contar(datos$lote[lote & (sin_marca | sin_nombre)]) else NA_real_,
                            sum(!sin_item & is.na(datos$descripcion)), sum(catalogo$conflicto),

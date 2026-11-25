@@ -14,7 +14,7 @@
 .GlosarioHeaderUI <- function() {
   secciones <- list(
     "Clientes y gestión comercial" = c(
-      "PerCod" = "Código institucional de la persona o empresa en SysCafe. Cada cuenta se consulta por su PerCod.",
+      "Código de cliente" = "Identificador de la cuenta comercial en SysCafe.",
       "Cliente" = "Cuenta con al menos un pedido válido observado en Diferenciados.",
       "Prospecto" = "Entidad identificada con la que todavía se explora una relación comercial.",
       "Oportunidad" = "Negocio potencial en seguimiento, con producto, volumen y próxima acción.",

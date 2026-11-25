@@ -84,3 +84,16 @@
 }
 .crm-nota-actividad .shiny-input-container { margin-bottom: 8px; }
 .crm-nota-actividad > button { margin-bottom: 8px; }
+
+/* El panel de opciones cubre los campos que quedan detrás mientras está abierto. */
+.selectize-control > .selectize-dropdown,
+.bootstrap-select > .dropdown-menu {
+  background-color: #fff !important;
+  color: #202428;
+  border: 1px solid var(--crm-rule);
+  box-shadow: 0 .25rem .65rem rgba(32, 36, 40, .16);
+}
+.selectize-control > .selectize-dropdown .selectize-dropdown-content,
+.bootstrap-select > .dropdown-menu > .inner {
+  background-color: #fff;
+}

@@ -178,7 +178,7 @@ GestionServer <- function(id, publicaciones, operativo, abrir) {
     valores <- stats::setNames(lapply(campos, function(x) input[[paste0("gestion_", x)]]), campos)
     valores$PerCod <- cliente_elegido()
     if (!is.null(ctx$origen) && !identical(valores$PerCod, ctx$cliente)) {
-      return(showNotification("El PerCod del registro no puede cambiar.", type = "error"))
+      return(showNotification("El código de cliente del registro no puede cambiar.", type = "error"))
     }
     tryCatch({
       t <- publicaciones()$operacional$tablas
