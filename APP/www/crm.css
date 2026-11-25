@@ -79,11 +79,11 @@
 }
 .crm-nota-selectize .selectize-input { box-sizing: border-box; width: 100%; }
 
-.crm-nota-actividad {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: end;
+.nota-actividad-row:has([aria-pressed="true"]) .nota-actividad-texto input {
+  color: #6c757d !important;
+  background-color: #f4f6f7 !important;
+  text-decoration: line-through;
 }
-.crm-nota-actividad .shiny-input-container { margin-bottom: 8px; }
-.crm-nota-actividad > button { margin-bottom: 8px; }
 
 /* El panel de opciones cubre los campos que quedan detrás mientras está abierto. */
 .selectize-control > .selectize-dropdown,
