@@ -249,7 +249,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
         resultado$items$Nombre <- mapa$nombre[match(resultado$items$Item, mapa$item)]
         resultado$periodo <- periodo()
         resultado$dimension <- input$dimension
-        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque", "asesores_inactivos")]
+        resultado$filtros <- filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque")]
         resultado$comercial <- input$comercial
         resultado$parametros <- c(input$cesta, input$soporte, input$minimo, input$longitud,
                                   input$confianza, input$lift, input$temporal, input$estadistica)
@@ -262,7 +262,7 @@ ProductosServer <- function(id, publicaciones, filtros, raiz, al_aceptar) {
       if (inherits(a, "error")) return(a)
       if (!identical(a$dimension, input$dimension) || !identical(a$periodo, periodo()) ||
           !identical(a$generacion, publicaciones()$operacional$manifiesto$id) ||
-          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque", "asesores_inactivos")]) ||
+          !identical(a$filtros, filtros()[c("destino", "pais", "estado", "periodo", "creador", "embarque")]) ||
           !identical(a$comercial, input$comercial) ||
           !identical(a$parametros, c(input$cesta, input$soporte, input$minimo, input$longitud,
                                     input$confianza, input$lift, input$temporal, input$estadistica))) {

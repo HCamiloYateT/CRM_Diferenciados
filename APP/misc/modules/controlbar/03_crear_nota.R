@@ -185,10 +185,12 @@ CrearNotas <- function(id, publicaciones, raiz, al_guardar, usuario = NULL, abri
     })
 
     responsables <- reactive({
-      d <- .asesores_catalogo(publicaciones()$crm$tablas)
+      tablas <- publicaciones()$crm$tablas
+      d <- .asesores_catalogo(tablas)
+      orden <- .gestion_filas(tablas, "asesores_orden")
       actual <- .asesor_usuario(identidad$usuario)
       claves <- d$usuario[d$vigente]
-      claves <- unique(c(claves, setdiff(actual, d$usuario)))
+      claves <- unique(c(claves, setdiff(actual, c(d$usuario, orden$usuario[orden$eliminado]))))
       stats::setNames(claves, .asesor_nombre(claves, d))
     })
     output$asignacion <- renderUI({

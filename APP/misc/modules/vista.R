@@ -68,7 +68,7 @@ VistaUI <- function(id, vista) {
 }
 
 .sin_filtros_vista <- function(filtros) {
-  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado", "creador", "embarque", "asesores_inactivos")])) && !nzchar(filtros$percod %||% "")
+  !any(lengths(filtros[c("periodo", "pais", "destino", "cliente", "estado", "creador", "embarque")])) && !nzchar(filtros$percod %||% "")
 }
 
 VistaServer <- function(id, vista, publicaciones, operativo, filtros, abrir_accion, cargando, navegar = function(id) NULL) {
